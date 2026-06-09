@@ -1,0 +1,56 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg: #ffffff;
+  --bg-card: #ffffff;
+  --bg-muted: #f9fafb;
+  --border: #e5e7eb;
+  --text: #111827;
+  --text-muted: #6b7280;
+  --text-subtle: #9ca3af;
+  --accent-bg: #f3f4f6;
+  --btn-primary-bg: #111827;
+  --badge-pending-bg: #fef3c7;
+  --badge-pending-text: #d97706;
+  --badge-approved-bg: #d1fae5;
+  --badge-approved-text: #059669;
+  --badge-rejected-bg: #fee2e2;
+  --badge-rejected-text: #dc2626;
+  --badge-update-bg: #dbeafe;
+  --badge-update-text: #2563eb;
+  --badge-apply-bg: #f3f4f6;
+  --badge-apply-text: #4b5563;
+}
+.dark {
+  --bg: #0f172a;
+  --bg-card: #1e293b;
+  --bg-muted: #1e293b;
+  --border: #334155;
+  --text: #f1f5f9;
+  --text-muted: #94a3b8;
+  --text-subtle: #64748b;
+  --accent-bg: #334155;
+  --btn-primary-bg: #1e293b;
+  --badge-pending-bg: #451a03;
+  --badge-pending-text: #fbbf24;
+  --badge-approved-bg: #052e16;
+  --badge-approved-text: #34d399;
+  --badge-rejected-bg: #450a0a;
+  --badge-rejected-text: #f87171;
+  --badge-update-bg: #1e3a5f;
+  --badge-update-text: #60a5fa;
+  --badge-apply-bg: #334155;
+  --badge-apply-text: #94a3b8;
+}
+body {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 4px; }
+.dark ::-webkit-scrollbar-thumb { background: #475569; }
