@@ -122,7 +122,6 @@ export function getDefaultResultHtml(): string {
   <div style="max-width:540px;margin:32px auto;">
     <div style="background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 4px 12px rgba(0,0,0,.06);">
       <div style="text-align:center;padding:36px 32px 0;">
-        <div style="width:12px;height:12px;border-radius:6px;margin:0 auto 12px;{resultColor}"></div>
         <div style="font-size:20px;font-weight:700;color:#0f172a;">{resultTitle}</div>
         <div style="font-size:13px;color:#64748b;margin-top:4px;">{type}</div>
       </div>
@@ -208,7 +207,6 @@ function mergeResultTemplate(template: string, data: SubmissionInfo, status: 'ap
     '{adminUrl}': adminUrl,
     '{resultTitle}': isApproved ? '申请已通过' : '申请未通过',
     '{resultAction}': isApproved ? '通过' : '拒绝',
-    '{resultColor}': isApproved ? 'background:#ecfdf5;color:#059669' : 'background:#fef2f2;color:#dc2626',
     '{resultIcon}': '',
   }
   let result = template
