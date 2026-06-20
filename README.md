@@ -147,7 +147,7 @@ Content-Type: application/json
  | `name` | 是 | 站点名称 |
  | `url` | 是 | 站点地址 |
  | `description` | 否 | 站点描述 |
- | `avatar` | 否 | 头像 URL |
+ | `avatar` | 是 | 头像 URL |
  | `siteshot` | 否 | 站点截图 URL （Butterfly 主题兼容） |
  | `topimg` | 否 | 站点截图 URL |
  | `email` | 是 | 提交者邮箱（用于审核结果通知） |
@@ -253,12 +253,11 @@ Script 方式会在 `<script>` 标签位置自动插入一个 `div` 并加载表
 <div id="fl-form">
   <form id="fl-f">
     <input id="fl-name" required placeholder="站点名称">
-    <input id="fl-url" type="url" required placeholder="https://example.com">
-    <input id="fl-desc" placeholder="站点描述">
-    <input id="fl-avatar" type="url" placeholder="https://example.com/avatar.png">
-    <input id="fl-siteshot" type="url" placeholder="https://example.com/screenshot.png (Butterfly)">
-    <input id="fl-topimg" type="url" placeholder="https://example.com/screenshot.png">
-    <input id="fl-email" type="email" required placeholder="you@example.com">
+    <input id="fl-url" type="url" required placeholder="网站地址">
+    <input id="fl-desc" placeholder="例如：一个关于技术和设计的博客">
+    <input id="fl-avatar" type="url" required placeholder="头像地址">
+    <input id="fl-siteshot" type="url" placeholder="站点截图链接（支持siteshot和topimg字段）">
+    <input id="fl-email" type="email" required placeholder="联系邮箱">
     <button type="submit">提交</button>
   </form>
 </div>
@@ -274,7 +273,6 @@ document.getElementById('fl-f').addEventListener('submit', function(e) {
       description: document.getElementById('fl-desc').value,
       avatar: document.getElementById('fl-avatar').value,
       siteshot: document.getElementById('fl-siteshot').value,
-      topimg: document.getElementById('fl-topimg').value,
       email: document.getElementById('fl-email').value,
       type: 'apply',
     })
@@ -927,23 +925,23 @@ document.getElementById('fl-f').addEventListener('submit', function(e) {
       <form id="fl-f-apply">
         <div class="fl-field">
           <label class="fl-label">站点名称 <span class="fl-star">*</span></label>
-          <input class="fl-input" id="fl-an" required placeholder="例如:安小歪">
+          <input class="fl-input" id="fl-an" required placeholder="站点名称">
         </div>
         <div class="fl-field">
           <label class="fl-label">站点地址 <span class="fl-star">*</span></label>
-          <input class="fl-input" id="fl-au" type="url" required placeholder="网站链接">
+          <input class="fl-input" id="fl-au" type="url" required placeholder="网站地址">
         </div>
         <div class="fl-field">
           <label class="fl-label">站点描述</label>
-          <input class="fl-input" id="fl-ad" placeholder="例如:一个关于技术和设计的博客">
+          <input class="fl-input" id="fl-ad" placeholder="例如：一个关于技术和设计的博客">
         </div>
         <div class="fl-field">
-          <label class="fl-label">头像地址</label>
-          <input class="fl-input" id="fl-aa" type="url" placeholder="头像链接">
+          <label class="fl-label">头像地址 <span class="fl-star">*</span></label>
+          <input class="fl-input" id="fl-aa" type="url" required placeholder="头像地址">
         </div>
         <div class="fl-field">
           <label class="fl-label">站点截图</label>
-          <input class="fl-input" id="fl-as" type="url" placeholder="站点截图链接">
+          <input class="fl-input" id="fl-as" type="url" placeholder="站点截图链接（支持siteshot和topimg字段）">
         </div>
         <div class="fl-field">
           <label class="fl-label">邮箱 <span class="fl-star">*</span></label>
@@ -967,23 +965,23 @@ document.getElementById('fl-f').addEventListener('submit', function(e) {
         </div>
         <div class="fl-field">
           <label class="fl-label">新站点名称 <span class="fl-star">*</span></label>
-          <input class="fl-input" id="fl-un" required placeholder="例如:安小歪">
+          <input class="fl-input" id="fl-un" required placeholder="站点名称">
         </div>
         <div class="fl-field">
           <label class="fl-label">新站点地址 <span class="fl-star">*</span></label>
-          <input class="fl-input" id="fl-uu" type="url" required placeholder="网站链接">
+          <input class="fl-input" id="fl-uu" type="url" required placeholder="网站地址">
         </div>
         <div class="fl-field">
           <label class="fl-label">新站点描述</label>
-          <input class="fl-input" id="fl-ud" placeholder="例如:一个关于技术和设计的博客">
+          <input class="fl-input" id="fl-ud" placeholder="例如：一个关于技术和设计的博客">
         </div>
         <div class="fl-field">
-          <label class="fl-label">新头像地址</label>
-          <input class="fl-input" id="fl-ua" type="url" placeholder="头像链接">
+          <label class="fl-label">新头像地址 <span class="fl-star">*</span></label>
+          <input class="fl-input" id="fl-ua" type="url" required placeholder="头像地址">
         </div>
         <div class="fl-field">
           <label class="fl-label">新站点截图</label>
-          <input class="fl-input" id="fl-us" type="url" placeholder="站点截图链接">
+          <input class="fl-input" id="fl-us" type="url" placeholder="站点截图链接（支持siteshot和topimg字段）">
         </div>
         <div class="fl-field">
           <label class="fl-label">邮箱 <span class="fl-star">*</span></label>
@@ -1271,6 +1269,10 @@ render();
 - **新增友链** — 扫描全部分组已有数据使用的字段名（`siteshot` 或 `topimg`），保持一致；若 YAML 中无任何截图记录，后台弹窗让管理员手动选择
 - **更新友链** — 通过 `originalUrl` 匹配 YAML 中的 `link` 字段找到原记录替换，保留原记录的截图字段名
 - **提交时** — 传 `siteshot` 或 `topimg` 皆可
+
+> **小技巧：** 如果 YAML 中没有任何截图记录，每次审核都会弹窗让你选择字段。可以在任意一个友链记录中手动加上 `siteshot: https://`（或 `topimg`），系统检测到有值后就会自动使用该字段名，不再弹窗。
+>
+> **注意：** 确保 `link` 字段末尾不要有反斜杠 `/`，否则更新友链时无法匹配原数据。系统写入时会自动去除尾部斜杠，但 YAML 中已有的旧数据需要手动清理。
 
 ## 项目结构
 

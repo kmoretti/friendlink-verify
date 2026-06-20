@@ -119,9 +119,9 @@ export async function POST(request: Request) {
     const body = await request.json()
     const { name, url, description, avatar, siteshot, topimg, email, type, originalUrl } = body
 
-    if (!name || !url) {
+    if (!name || !url || !avatar) {
       return NextResponse.json(
-        { error: '站点名称和地址不能为空' },
+        { error: '站点名称、地址和头像不能为空' },
         { status: 400, headers: corsHeaders }
       )
     }

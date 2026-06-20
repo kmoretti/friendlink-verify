@@ -38,7 +38,7 @@ function EmbedForm() {
       body.description = form.description
       body.avatar = form.avatar
       body.siteshot = form.siteshot
-      body.topimg = form.topimg
+      body.topimg = form.siteshot
       body.email = form.email
       if (isUpdate) {
         body.type = 'update'
@@ -144,7 +144,7 @@ function EmbedForm() {
               type="url"
               value={form.originalUrl}
               onChange={(e) => setForm({ ...form, originalUrl: e.target.value })}
-              placeholder="https://example.com"
+              placeholder="原来的网站地址"
               style={inputStyle}
               onFocus={(e) => { e.target.style.borderColor = '#3b82f6'; e.target.style.boxShadow = '0 0 0 2px rgba(59,130,246,0.15)' }}
               onBlur={(e) => { e.target.style.borderColor = 'var(--border, #d1d5db)'; e.target.style.boxShadow = 'none' }}
@@ -160,7 +160,7 @@ function EmbedForm() {
             required
             value={form.name}
             onChange={(e) => setForm({ ...form, name: e.target.value })}
-            placeholder="我的博客"
+            placeholder="站点名称"
             style={inputStyle}
             onFocus={(e) => { e.target.style.borderColor = '#3b82f6'; e.target.style.boxShadow = '0 0 0 2px rgba(59,130,246,0.15)' }}
             onBlur={(e) => { e.target.style.borderColor = 'var(--border, #d1d5db)'; e.target.style.boxShadow = 'none' }}
@@ -176,7 +176,7 @@ function EmbedForm() {
             type="url"
             value={form.url}
             onChange={(e) => setForm({ ...form, url: e.target.value })}
-            placeholder="https://example.com"
+            placeholder="网站地址"
             style={inputStyle}
             onFocus={(e) => { e.target.style.borderColor = '#3b82f6'; e.target.style.boxShadow = '0 0 0 2px rgba(59,130,246,0.15)' }}
             onBlur={(e) => { e.target.style.borderColor = 'var(--border, #d1d5db)'; e.target.style.boxShadow = 'none' }}
@@ -190,7 +190,7 @@ function EmbedForm() {
           <input
             value={form.description}
             onChange={(e) => setForm({ ...form, description: e.target.value })}
-            placeholder="一个关于技术和设计的博客"
+            placeholder="例如：一个关于技术和设计的博客"
             style={inputStyle}
             onFocus={(e) => { e.target.style.borderColor = '#3b82f6'; e.target.style.boxShadow = '0 0 0 2px rgba(59,130,246,0.15)' }}
             onBlur={(e) => { e.target.style.borderColor = 'var(--border, #d1d5db)'; e.target.style.boxShadow = 'none' }}
@@ -199,13 +199,14 @@ function EmbedForm() {
 
         <div style={{ marginBottom: 14 }}>
           <label style={s('l')}>
-            头像地址
+            头像地址 <span style={{ color: '#ef4444' }}>*</span>
           </label>
           <input
+            required
             type="url"
             value={form.avatar}
             onChange={(e) => setForm({ ...form, avatar: e.target.value })}
-            placeholder="https://example.com/avatar.png"
+            placeholder="头像地址"
             style={inputStyle}
             onFocus={(e) => { e.target.style.borderColor = '#3b82f6'; e.target.style.boxShadow = '0 0 0 2px rgba(59,130,246,0.15)' }}
             onBlur={(e) => { e.target.style.borderColor = 'var(--border, #d1d5db)'; e.target.style.boxShadow = 'none' }}
@@ -220,22 +221,7 @@ function EmbedForm() {
             type="url"
             value={form.siteshot}
             onChange={(e) => setForm({ ...form, siteshot: e.target.value })}
-            placeholder="https://example.com/screenshot.png"
-            style={inputStyle}
-            onFocus={(e) => { e.target.style.borderColor = '#3b82f6'; e.target.style.boxShadow = '0 0 0 2px rgba(59,130,246,0.15)' }}
-            onBlur={(e) => { e.target.style.borderColor = 'var(--border, #d1d5db)'; e.target.style.boxShadow = 'none' }}
-          />
-        </div>
-
-        <div style={{ marginBottom: 14 }}>
-          <label style={s('l')}>
-            站点截图 (topimg)
-          </label>
-          <input
-            type="url"
-            value={form.topimg}
-            onChange={(e) => setForm({ ...form, topimg: e.target.value })}
-            placeholder="https://example.com/screenshot.png (Butterfly 主题)"
+            placeholder="站点截图链接（支持siteshot和topimg字段）"
             style={inputStyle}
             onFocus={(e) => { e.target.style.borderColor = '#3b82f6'; e.target.style.boxShadow = '0 0 0 2px rgba(59,130,246,0.15)' }}
             onBlur={(e) => { e.target.style.borderColor = 'var(--border, #d1d5db)'; e.target.style.boxShadow = 'none' }}
@@ -251,7 +237,7 @@ function EmbedForm() {
             type="email"
             value={form.email}
             onChange={(e) => setForm({ ...form, email: e.target.value })}
-            placeholder="you@example.com"
+            placeholder="联系邮箱"
             style={inputStyle}
             onFocus={(e) => { e.target.style.borderColor = '#3b82f6'; e.target.style.boxShadow = '0 0 0 2px rgba(59,130,246,0.15)' }}
             onBlur={(e) => { e.target.style.borderColor = 'var(--border, #d1d5db)'; e.target.style.boxShadow = 'none' }}

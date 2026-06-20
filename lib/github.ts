@@ -39,10 +39,11 @@ function getConfig(): GitHubConfig | null {
 }
 
 function sanitizeUrl(url: string): string {
+  if (!url) return url
   if (!url.startsWith('http://') && !url.startsWith('https://')) {
-    return `https://${url}`
+    url = `https://${url}`
   }
-  return url
+  return url.replace(/\/+$/, '')
 }
 
 async function getYmlContent(octokit: Octokit, owner: string, repo: string, path: string) {

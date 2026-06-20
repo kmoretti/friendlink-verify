@@ -197,12 +197,41 @@ export default function HomePage() {
                 </div>
                 <div className="text-xs mb-2" style={{ color: 'var(--text-muted)' }}>适合任何静态站点，直接 POST 到 API：</div>
                 <pre className="text-xs rounded-lg p-3 overflow-x-auto border leading-relaxed" style={{ color: 'var(--text-muted)', backgroundColor: 'var(--bg-muted)', borderColor: 'var(--border)', maxHeight: 200 }}>
-{`<form id="fl-f">
+{previewMode === 'update' ? `<form id="fl-f">
+  <input id="fl-originalUrl" type="url" required placeholder="原来的网站地址">
   <input id="fl-name" required placeholder="站点名称">
-  <input id="fl-url" type="url" required placeholder="https://example.com">
-  <input id="fl-desc" placeholder="站点描述">
-  <input id="fl-avatar" type="url" placeholder="头像">
-  <input id="fl-email" type="email" required placeholder="邮箱">
+  <input id="fl-url" type="url" required placeholder="网站地址">
+  <input id="fl-desc" placeholder="例如：一个关于技术和设计的博客">
+  <input id="fl-avatar" type="url" required placeholder="头像地址">
+  <input id="fl-siteshot" type="url" placeholder="站点截图链接（支持siteshot和topimg字段）">
+  <input id="fl-email" type="email" required placeholder="联系邮箱">
+  <button type="submit">提交更新</button>
+</form>
+<script>
+document.getElementById('fl-f').addEventListener('submit', function(e) {
+  e.preventDefault();
+  fetch('${embedHost}/api/submissions', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({
+      originalUrl: document.getElementById('fl-originalUrl').value,
+      name: document.getElementById('fl-name').value,
+      url: document.getElementById('fl-url').value,
+      description: document.getElementById('fl-desc').value,
+      avatar: document.getElementById('fl-avatar').value,
+      siteshot: document.getElementById('fl-siteshot').value,
+      email: document.getElementById('fl-email').value,
+      type: 'update',
+    })
+  });
+});
+<\/script>` : `<form id="fl-f">
+  <input id="fl-name" required placeholder="站点名称">
+  <input id="fl-url" type="url" required placeholder="网站地址">
+  <input id="fl-desc" placeholder="例如：一个关于技术和设计的博客">
+  <input id="fl-avatar" type="url" required placeholder="头像地址">
+  <input id="fl-siteshot" type="url" placeholder="站点截图链接（支持siteshot和topimg字段）">
+  <input id="fl-email" type="email" required placeholder="联系邮箱">
   <button type="submit">提交</button>
 </form>
 <script>
@@ -216,8 +245,9 @@ document.getElementById('fl-f').addEventListener('submit', function(e) {
       url: document.getElementById('fl-url').value,
       description: document.getElementById('fl-desc').value,
       avatar: document.getElementById('fl-avatar').value,
+      siteshot: document.getElementById('fl-siteshot').value,
       email: document.getElementById('fl-email').value,
-      type: '${previewMode}',
+      type: 'apply',
     })
   });
 });
