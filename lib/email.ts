@@ -169,7 +169,7 @@ function mergeTemplate(template: string, data: SubmissionInfo): string {
     '{email}': data.email || '-',
     '{type}': data.type === 'update' ? '更新友链' : '申请友链',
     '{originalUrl}': data.originalUrl || '',
-    '{time}': data.createdAt.toLocaleString('zh-CN'),
+    '{time}': data.createdAt.toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' }),
     '{originalUrlRow}': originalUrlRow,
     '{adminUrl}': adminUrl,
   }
@@ -200,7 +200,7 @@ function mergeResultTemplate(template: string, data: SubmissionInfo, status: 'ap
     '{email}': data.email || '-',
     '{type}': data.type === 'update' ? '更新友链' : '申请友链',
     '{originalUrl}': data.originalUrl || '',
-    '{time}': data.createdAt.toLocaleString('zh-CN'),
+    '{time}': data.createdAt.toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' }),
     '{originalUrlRow}': originalUrlRow,
     '{descriptionRow}': descriptionRow,
     '{reasonRow}': reasonRow,
