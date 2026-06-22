@@ -711,6 +711,7 @@ document.getElementById('fl-f').addEventListener('submit', function(e) {
 }
 
 #fl-status-grid .fl-status-item {
+    min-width: 0;
     padding: 14px;
     border: 1.5px solid #b0b0b0;
     border-radius: 10px;
@@ -718,10 +719,18 @@ document.getElementById('fl-f').addEventListener('submit', function(e) {
     display: flex;
     flex-direction: column;
     gap: 6px;
-    position: relative;
     padding-top: 16px;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
     transition: all .2s;
+}
+
+#fl-status-grid .fl-status-top {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 8px;
+    min-width: 0;
+    flex-wrap: wrap;
 }
 
 #fl-status-grid .fl-status-item:hover {
@@ -747,7 +756,8 @@ document.getElementById('fl-f').addEventListener('submit', function(e) {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    padding-right: 120px;
+    flex: 1;
+    min-width: 0;
 }
 
 #fl-status-grid .fl-status-desc {
@@ -756,16 +766,14 @@ document.getElementById('fl-f').addEventListener('submit', function(e) {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    flex: 1;
+    min-width: 0;
 }
 
 #fl-status-grid .fl-status-top-right {
-    position: absolute;
-    top: 12px;
-    right: 12px;
     display: flex;
     align-items: center;
     gap: 6px;
+    flex-shrink: 0;
 }
 
 #fl-status-grid .fl-status-badge {
@@ -1129,13 +1137,17 @@ function render(){
     pageItems.forEach(function(item){
       var statusText=getStatusText(item.status);
       var typeText=item.type==='update'?'更新':'新增';
+      var nameText=escapeHtml(item.name);
+      var descText=escapeHtml(item.description||'暂无描述');
       html+='<div class="fl-status-item">'+
-        '<div class="fl-status-name">'+escapeHtml(item.name)+'</div>'+
-        '<div class="fl-status-desc">'+escapeHtml(item.description||'暂无描述')+'</div>'+
+        '<div class="fl-status-top">'+
+        '<div class="fl-status-name" title="'+nameText+'">'+nameText+'</div>'+
         '<div class="fl-status-top-right">'+
         '<span class="fl-status-badge '+item.status+'">'+statusText+'</span>'+
         '<span class="fl-status-type">'+typeText+'</span>'+
         '</div>'+
+        '</div>'+
+        '<div class="fl-status-desc" title="'+descText+'">'+descText+'</div>'+
         '</div>';
     });
     gridEl.innerHTML=html;
