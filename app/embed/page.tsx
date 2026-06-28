@@ -17,6 +17,7 @@ function EmbedForm() {
     url: '',
     description: '',
     avatar: '',
+    friendslink: '',
     feeds: '',
     siteshot: '',
     topimg: '',
@@ -38,6 +39,7 @@ function EmbedForm() {
       body.url = form.url
       body.description = form.description
       body.avatar = form.avatar
+      body.friendslink = form.friendslink
       body.feeds = form.feeds
       body.siteshot = form.siteshot
       body.topimg = form.siteshot
@@ -197,6 +199,25 @@ function EmbedForm() {
             onFocus={(e) => { e.target.style.borderColor = '#3b82f6'; e.target.style.boxShadow = '0 0 0 2px rgba(59,130,246,0.15)' }}
             onBlur={(e) => { e.target.style.borderColor = 'var(--border, #d1d5db)'; e.target.style.boxShadow = 'none' }}
           />
+        </div>
+
+        <div style={{ marginBottom: 14 }}>
+          <label style={s('l')}>
+            友链页面 <span style={{ color: '#ef4444' }}>*</span>
+          </label>
+          <input
+            required
+            type="url"
+            value={form.friendslink}
+            onChange={(e) => setForm({ ...form, friendslink: e.target.value })}
+            placeholder="你的友链页面地址（如 https://blog.example.com/link/）"
+            style={inputStyle}
+            onFocus={(e) => { e.target.style.borderColor = '#3b82f6'; e.target.style.boxShadow = '0 0 0 2px rgba(59,130,246,0.15)' }}
+            onBlur={(e) => { e.target.style.borderColor = 'var(--border, #d1d5db)'; e.target.style.boxShadow = 'none' }}
+          />
+          <p style={{ margin: '4px 0 0', fontSize: 11, color: 'var(--text-muted, #9ca3af)' }}>
+            你的博客上展示友链的页面地址
+          </p>
         </div>
 
         <div style={{ marginBottom: 14 }}>

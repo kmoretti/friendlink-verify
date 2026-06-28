@@ -48,7 +48,7 @@ export async function GET(request: Request) {
       if (status) filter.status = status
       const search = searchParams.get('search')
       if (search) filter.name = { $regex: search, $options: 'i' }
-      const submissions = await Submission.find(filter, 'name description status type feeds')
+      const submissions = await Submission.find(filter, 'name description friendslink status type feeds')
         .sort({ createdAt: -1 }).lean()
       return NextResponse.json({ submissions }, {
         headers: { 'Access-Control-Allow-Origin': '*' },
@@ -117,11 +117,11 @@ export async function POST(request: Request) {
 
   try {
     const body = await request.json()
-    const { name, url, description, avatar, feeds, siteshot, topimg, email, type, originalUrl } = body
+    const { name, url, description, avatar, friendslink, feeds, siteshot, topimg, email, type, originalUrl } = body
 
-    if (!name || !url || !avatar) {
+    if (!name || !url || !avatar || !friendslink) {
       return NextResponse.json(
-        { error: '站点名称、地址和头像不能为空' },
+        { error: '站点名称、地址、头像和友链页面不能为空' },
         { status: 400, headers: corsHeaders }
       )
     }
@@ -150,6 +150,7 @@ export async function POST(request: Request) {
       url,
       description: description || '',
       avatar: avatar || '',
+      friendslink: friendslink || '',
       feeds: feeds || '',
       siteshot: siteshot || '',
       topimg: topimg || '',

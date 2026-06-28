@@ -26,6 +26,7 @@
 - **GitHub 自动推送** — 审核通过后自动追加或更新 YAML 到仓库
 - **邮件通知** — 新提交通知管理员 + 审核结果通知提交者（模板可后台编辑，支持 Markdown，邮箱为选填）
 - **RSS 订阅** — 提交时可填写 RSS 订阅地址，审核通过后自动写入 YAML `feeds` 字段
+- **友链页面** — 提交时必须填写友链页面地址（用于确认互换友链），审核通过后自动写入 YAML `friendslink` 字段
 - **表情选择器** — 拒绝原因输入支持 OwO 表情（URL 可后台配置）
 - **自动清理** — 按状态分别设置保留天数，打开后台时自动清理过期记录（非定时触发）
 - **站点截图** — 提交时可上传站点截图，审核时方便预览；自动兼容 `siteshot` 和 `topimg` 两种字段名
@@ -135,6 +136,7 @@ Content-Type: application/json
   "url": "https://example.com",
   "description": "站点描述",
   "avatar": "https://example.com/avatar.png",
+  "friendslink": "https://example.com/link/",
   "feeds": "https://blog.example.com/atom.xml",
   "siteshot": "https://example.com/screenshot.png",
   "topimg": "https://example.com/screenshot.png",
@@ -150,6 +152,7 @@ Content-Type: application/json
 | `url` | 是 | 站点地址 |
 | `description` | 否 | 站点描述 |
 | `avatar` | 是 | 头像 URL |
+| `friendslink` | 是 | 友链页面地址 |
 | `feeds` | 否 | RSS 订阅地址 |
 | `siteshot` | 否 | 站点截图 URL（Butterfly 主题兼容） |
 | `topimg` | 否 | 站点截图 URL |
@@ -215,7 +218,7 @@ GET /api/submissions?public=1
 | `status` | 筛选状态，可选 `pending` / `approved` / `rejected` |
 | `search` | 按站点名称模糊搜索（不区分大小写） |
 
-返回 `{ submissions: [...] }`，每项仅含 `name`、`description`、`status`、`type`、`feeds` 五个字段。响应带有 `Access-Control-Allow-Origin: *` CORS 头，支持跨域调用。
+返回 `{ submissions: [...] }`，每项仅含 `name`、`description`、`friendslink`、`status`、`type`、`feeds` 六个字段。响应带有 `Access-Control-Allow-Origin: *` CORS 头，支持跨域调用。
 
 ### 后台设置
 
@@ -259,6 +262,7 @@ Script 方式会在 `<script>` 标签位置自动插入一个 `div` 并加载表
     <input id="fl-url" type="url" required placeholder="网站地址">
     <input id="fl-desc" placeholder="例如：一个关于技术和设计的博客">
     <input id="fl-avatar" type="url" required placeholder="头像地址">
+    <input id="fl-friendslink" type="url" required placeholder="你的友链页面地址（如 https://example.com/link/）">
     <input id="fl-feeds" type="url" placeholder="RSS 订阅地址（如 https://blog.example.com/atom.xml）">
     <input id="fl-siteshot" type="url" placeholder="站点截图链接（支持siteshot和topimg字段）">
     <input id="fl-email" type="email" placeholder="联系邮箱（选填，用于接收审核结果通知）">
@@ -276,6 +280,7 @@ document.getElementById('fl-f').addEventListener('submit', function(e) {
       url: document.getElementById('fl-url').value,
       description: document.getElementById('fl-desc').value,
       avatar: document.getElementById('fl-avatar').value,
+      friendslink: document.getElementById('fl-friendslink').value,
       feeds: document.getElementById('fl-feeds').value,
       siteshot: document.getElementById('fl-siteshot').value,
       email: document.getElementById('fl-email').value,
@@ -953,6 +958,10 @@ document.getElementById('fl-f').addEventListener('submit', function(e) {
           <input class="fl-input" id="fl-aa" type="url" required placeholder="头像地址">
         </div>
         <div class="fl-field">
+          <label class="fl-label">友链页面 <span class="fl-star">*</span></label>
+          <input class="fl-input" id="fl-afriendslink" type="url" required placeholder="你的友链页面地址（如 https://example.com/link/）">
+        </div>
+        <div class="fl-field">
           <label class="fl-label">站点截图</label>
           <input class="fl-input" id="fl-as" type="url" placeholder="站点截图链接（支持siteshot和topimg字段）">
         </div>
@@ -997,6 +1006,10 @@ document.getElementById('fl-f').addEventListener('submit', function(e) {
           <input class="fl-input" id="fl-ua" type="url" required placeholder="头像地址">
         </div>
         <div class="fl-field">
+          <label class="fl-label">友链页面 <span class="fl-star">*</span></label>
+          <input class="fl-input" id="fl-ufriendslink" type="url" required placeholder="你的友链页面地址（如 https://example.com/link/）">
+        </div>
+        <div class="fl-field">
           <label class="fl-label">新站点截图</label>
           <input class="fl-input" id="fl-us" type="url" placeholder="站点截图链接（支持siteshot和topimg字段）">
         </div>
@@ -1036,8 +1049,8 @@ function submitForm(cbId,formId,getData){
   });
 }
 
-submitForm('fl-form-apply','fl-form-apply',function(f){return{type:'apply',name:f.querySelector('#fl-an').value,url:f.querySelector('#fl-au').value,description:f.querySelector('#fl-ad').value,avatar:f.querySelector('#fl-aa').value,siteshot:f.querySelector('#fl-as').value,feeds:f.querySelector('#fl-afeeds').value,email:f.querySelector('#fl-ae').value}});
-submitForm('fl-form-update','fl-form-update',function(f){return{type:'update',originalUrl:f.querySelector('#fl-uorig').value,name:f.querySelector('#fl-un').value,url:f.querySelector('#fl-uu').value,description:f.querySelector('#fl-ud').value,avatar:f.querySelector('#fl-ua').value,siteshot:f.querySelector('#fl-us').value,feeds:f.querySelector('#fl-ufeeds').value,email:f.querySelector('#fl-ue').value}});
+submitForm('fl-form-apply','fl-form-apply',function(f){return{type:'apply',name:f.querySelector('#fl-an').value,url:f.querySelector('#fl-au').value,description:f.querySelector('#fl-ad').value,avatar:f.querySelector('#fl-aa').value,friendslink:f.querySelector('#fl-afriendslink').value,siteshot:f.querySelector('#fl-as').value,feeds:f.querySelector('#fl-afeeds').value,email:f.querySelector('#fl-ae').value}});
+submitForm('fl-form-update','fl-form-update',function(f){return{type:'update',originalUrl:f.querySelector('#fl-uorig').value,name:f.querySelector('#fl-un').value,url:f.querySelector('#fl-uu').value,description:f.querySelector('#fl-ud').value,avatar:f.querySelector('#fl-ua').value,friendslink:f.querySelector('#fl-ufriendslink').value,siteshot:f.querySelector('#fl-us').value,feeds:f.querySelector('#fl-ufeeds').value,email:f.querySelector('#fl-ue').value}});
 </script>
 {% endraw %}
 
@@ -1263,6 +1276,7 @@ render();
 | `{type}` | 类型（申请友链 / 更新友链） |
 | `{originalUrl}` | 原站点地址（仅更新类型） |
 | `{originalUrlRow}` | 原站点地址表格行（HTML 模板用） |
+| `{friendslinkRow}` | 友链页面表格行（HTML 模板用） |
 | `{feedsRow}` | RSS 订阅表格行（HTML 模板用） |
 | `{time}` | 提交时间 |
 | `{adminUrl}` | 后台审核链接 |
@@ -1287,6 +1301,7 @@ render();
     - name: 站点名称
       link: https://example.com
       avatar: https://example.com/avatar.png
+      friendslink: https://example.com/link/   # 友链页面地址
       feeds: https://blog.example.com/atom.xml   # RSS 订阅地址
       siteshot: https://example.com/screenshot.png   # 也兼容 topimg 字段
       descr: 站点描述

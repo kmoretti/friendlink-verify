@@ -13,6 +13,7 @@ interface Submission {
   url: string
   description: string
   avatar: string
+  friendslink: string
   siteshot: string
   feeds: string
   email: string

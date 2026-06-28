@@ -8,6 +8,7 @@ interface Submission {
   url: string
   description: string
   avatar: string
+  friendslink: string
   siteshot: string
   feeds: string
   email: string
@@ -135,6 +136,17 @@ export default function SubmissionTable({
                               <path d="M4 4a16 16 0 0116 16h-3a13 13 0 00-13-13v-3z"/>
                             </svg>
                             RSS
+                          </a>
+                        )}
+                        {s.friendslink && (
+                          <a href={s.friendslink} target="_blank" rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 mt-1 text-[11px] hover:underline"
+                            style={{ color: '#7c3aed' }}>
+                            <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
+                              <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
+                            </svg>
+                            友链页
                           </a>
                         )}
                         {s.siteshot && (

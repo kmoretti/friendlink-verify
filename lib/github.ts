@@ -6,6 +6,7 @@ interface LinkEntry {
   url: string
   description?: string
   avatar?: string
+  friendslink?: string
   feeds?: string
   siteshot?: string
   topimg?: string
@@ -18,6 +19,7 @@ interface YmlGroup {
     name: string
     link: string
     avatar: string
+    friendslink?: string
     feeds?: string
     siteshot?: string
     topimg?: string
@@ -116,6 +118,7 @@ export async function addLink(entry: LinkEntry, className?: string, screenshotFi
     const screenshot = sanitizeUrl(entry.siteshot || entry.topimg || '')
     if (screenshot) newEntry[field] = screenshot
     if (entry.feeds) newEntry.feeds = sanitizeUrl(entry.feeds)
+    if (entry.friendslink) newEntry.friendslink = sanitizeUrl(entry.friendslink)
 
     if (targetGroup) {
       targetGroup.link_list.push(newEntry)
@@ -140,6 +143,7 @@ export async function addLink(entry: LinkEntry, className?: string, screenshotFi
       const screenshot = sanitizeUrl(entry.siteshot || entry.topimg || '')
       if (screenshot) newEntry[field] = screenshot
       if (entry.feeds) newEntry.feeds = sanitizeUrl(entry.feeds)
+      if (entry.friendslink) newEntry.friendslink = sanitizeUrl(entry.friendslink)
 
       const groups: YmlGroup[] = [{
         class_name: className || '友情链接',
@@ -195,6 +199,11 @@ export async function updateLink(originalUrl: string, entry: LinkEntry) {
         updated.feeds = sanitizeUrl(entry.feeds)
       } else if (existing.feeds) {
         updated.feeds = existing.feeds
+      }
+      if (entry.friendslink) {
+        updated.friendslink = sanitizeUrl(entry.friendslink)
+      } else if (existing.friendslink) {
+        updated.friendslink = existing.friendslink
       }
       const newScreenshot = sanitizeUrl(entry.siteshot || entry.topimg || '')
       if (newScreenshot) {

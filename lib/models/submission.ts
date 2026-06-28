@@ -5,6 +5,7 @@ export interface ISubmission extends Document {
   url: string
   description: string
   avatar: string
+  friendslink: string
   siteshot: string
   topimg: string
   feeds: string
@@ -22,6 +23,7 @@ const SubmissionSchema = new Schema<ISubmission>(
     url: { type: String, required: true },
     description: { type: String, default: '' },
     avatar: { type: String, default: '' },
+    friendslink: { type: String, default: '' },
     siteshot: { type: String, default: '' },
     topimg: { type: String, default: '' },
     feeds: { type: String, default: '' },
