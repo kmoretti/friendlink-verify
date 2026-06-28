@@ -51,6 +51,7 @@ export async function PATCH(
             url: submission.url,
             description: submission.description,
             avatar: submission.avatar,
+            feeds: submission.feeds,
             siteshot: submission.siteshot,
             topimg: submission.topimg,
           })
@@ -60,6 +61,7 @@ export async function PATCH(
             url: submission.url,
             description: submission.description,
             avatar: submission.avatar,
+            feeds: submission.feeds,
             siteshot: submission.siteshot,
             topimg: submission.topimg,
           }, className, screenshotField)

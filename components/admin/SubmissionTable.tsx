@@ -9,6 +9,7 @@ interface Submission {
   description: string
   avatar: string
   siteshot: string
+  feeds: string
   email: string
   type: 'apply' | 'update'
   originalUrl: string
@@ -124,6 +125,18 @@ export default function SubmissionTable({
                         <div className="font-medium text-sm" style={{ color: 'var(--text)' }}>{s.name}</div>
                         {s.email && <div className="text-[11px] mt-0.5" style={{ color: 'var(--text-muted)' }}>{s.email}</div>}
                         {s.description && <div className="text-[11px] line-clamp-1 mt-0.5" style={{ color: 'var(--text-subtle, #9ca3af)' }}>{s.description}</div>}
+                        {s.feeds && (
+                          <a href={s.feeds} target="_blank" rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 mt-1 text-[11px] hover:underline"
+                            style={{ color: '#ea580c' }}>
+                            <svg className="w-3 h-3" viewBox="0 0 24 24" fill="currentColor">
+                              <circle cx="4" cy="20" r="3"/>
+                              <path d="M4 11a9 9 0 019 9h-3a6 6 0 00-6-6v-3z"/>
+                              <path d="M4 4a16 16 0 0116 16h-3a13 13 0 00-13-13v-3z"/>
+                            </svg>
+                            RSS
+                          </a>
+                        )}
                         {s.siteshot && (
                           <img src={s.siteshot} alt="screenshot" className="mt-1.5 rounded-lg" style={{ width: 120, height: 72, objectFit: 'cover', border: '1px solid var(--border)' }}
                             onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }} />

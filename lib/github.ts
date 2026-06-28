@@ -6,6 +6,7 @@ interface LinkEntry {
   url: string
   description?: string
   avatar?: string
+  feeds?: string
   siteshot?: string
   topimg?: string
 }
@@ -17,6 +18,7 @@ interface YmlGroup {
     name: string
     link: string
     avatar: string
+    feeds?: string
     siteshot?: string
     topimg?: string
     descr: string
@@ -113,6 +115,7 @@ export async function addLink(entry: LinkEntry, className?: string, screenshotFi
     }
     const screenshot = sanitizeUrl(entry.siteshot || entry.topimg || '')
     if (screenshot) newEntry[field] = screenshot
+    if (entry.feeds) newEntry.feeds = sanitizeUrl(entry.feeds)
 
     if (targetGroup) {
       targetGroup.link_list.push(newEntry)
@@ -136,6 +139,7 @@ export async function addLink(entry: LinkEntry, className?: string, screenshotFi
       }
       const screenshot = sanitizeUrl(entry.siteshot || entry.topimg || '')
       if (screenshot) newEntry[field] = screenshot
+      if (entry.feeds) newEntry.feeds = sanitizeUrl(entry.feeds)
 
       const groups: YmlGroup[] = [{
         class_name: className || '友情链接',
@@ -187,6 +191,11 @@ export async function updateLink(originalUrl: string, entry: LinkEntry) {
         avatar: sanitizeUrl(entry.avatar || existing.avatar),
         descr: entry.description || existing.descr,
       } as YmlGroup['link_list'][number]
+      if (entry.feeds) {
+        updated.feeds = sanitizeUrl(entry.feeds)
+      } else if (existing.feeds) {
+        updated.feeds = existing.feeds
+      }
       const newScreenshot = sanitizeUrl(entry.siteshot || entry.topimg || '')
       if (newScreenshot) {
         if (existing.topimg && !existing.siteshot) {

@@ -14,6 +14,7 @@ interface Submission {
   description: string
   avatar: string
   siteshot: string
+  feeds: string
   email: string
   type: 'apply' | 'update'
   originalUrl: string

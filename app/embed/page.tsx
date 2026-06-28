@@ -17,6 +17,7 @@ function EmbedForm() {
     url: '',
     description: '',
     avatar: '',
+    feeds: '',
     siteshot: '',
     topimg: '',
     email: '',
@@ -37,6 +38,7 @@ function EmbedForm() {
       body.url = form.url
       body.description = form.description
       body.avatar = form.avatar
+      body.feeds = form.feeds
       body.siteshot = form.siteshot
       body.topimg = form.siteshot
       body.email = form.email
@@ -207,15 +209,30 @@ function EmbedForm() {
             value={form.avatar}
             onChange={(e) => setForm({ ...form, avatar: e.target.value })}
             placeholder="头像地址"
-            style={inputStyle}
-            onFocus={(e) => { e.target.style.borderColor = '#3b82f6'; e.target.style.boxShadow = '0 0 0 2px rgba(59,130,246,0.15)' }}
-            onBlur={(e) => { e.target.style.borderColor = 'var(--border, #d1d5db)'; e.target.style.boxShadow = 'none' }}
-          />
-        </div>
+          style={inputStyle}
+          onFocus={(e) => { e.target.style.borderColor = '#3b82f6'; e.target.style.boxShadow = '0 0 0 2px rgba(59,130,246,0.15)' }}
+          onBlur={(e) => { e.target.style.borderColor = 'var(--border, #d1d5db)'; e.target.style.boxShadow = 'none' }}
+        />
+      </div>
 
-        <div style={{ marginBottom: 14 }}>
-          <label style={s('l')}>
-            站点截图
+      <div style={{ marginBottom: 14 }}>
+        <label style={s('l')}>
+          RSS 订阅
+        </label>
+        <input
+          type="url"
+          value={form.feeds}
+          onChange={(e) => setForm({ ...form, feeds: e.target.value })}
+          placeholder="RSS 订阅地址（如 https://blog.example.com/atom.xml）"
+          style={inputStyle}
+          onFocus={(e) => { e.target.style.borderColor = '#3b82f6'; e.target.style.boxShadow = '0 0 0 2px rgba(59,130,246,0.15)' }}
+          onBlur={(e) => { e.target.style.borderColor = 'var(--border, #d1d5db)'; e.target.style.boxShadow = 'none' }}
+        />
+      </div>
+
+      <div style={{ marginBottom: 14 }}>
+        <label style={s('l')}>
+          站点截图
           </label>
           <input
             type="url"

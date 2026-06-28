@@ -48,7 +48,7 @@ export async function GET(request: Request) {
       if (status) filter.status = status
       const search = searchParams.get('search')
       if (search) filter.name = { $regex: search, $options: 'i' }
-      const submissions = await Submission.find(filter, 'name description status type')
+      const submissions = await Submission.find(filter, 'name description status type feeds')
         .sort({ createdAt: -1 }).lean()
       return NextResponse.json({ submissions }, {
         headers: { 'Access-Control-Allow-Origin': '*' },
@@ -117,7 +117,7 @@ export async function POST(request: Request) {
 
   try {
     const body = await request.json()
-    const { name, url, description, avatar, siteshot, topimg, email, type, originalUrl } = body
+    const { name, url, description, avatar, feeds, siteshot, topimg, email, type, originalUrl } = body
 
     if (!name || !url || !avatar) {
       return NextResponse.json(
@@ -157,6 +157,7 @@ export async function POST(request: Request) {
       url,
       description: description || '',
       avatar: avatar || '',
+      feeds: feeds || '',
       siteshot: siteshot || '',
       topimg: topimg || '',
       email: email || '',

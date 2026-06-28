@@ -16,6 +16,7 @@ export interface SubmissionInfo {
   url: string
   description: string
   avatar: string
+  feeds: string
   email: string
   type: 'apply' | 'update'
   originalUrl: string
@@ -95,6 +96,7 @@ export function getDefaultHtml(): string {
         <tr><td style="padding:8px 16px;border-bottom:1px solid #eee;color:#64748b;font-size:13px;">站点地址</td><td style="padding:8px 16px;border-bottom:1px solid #eee;font-size:13px;"><a href="{url}" style="color:#2563eb;text-decoration:none;">{url}</a></td></tr>
         {originalUrlRow}
         <tr><td style="padding:8px 16px;border-bottom:1px solid #eee;color:#64748b;font-size:13px;">描述</td><td style="padding:8px 16px;border-bottom:1px solid #eee;font-size:13px;">{description}</td></tr>
+        {feedsRow}
         <tr><td style="padding:8px 16px;border-bottom:1px solid #eee;color:#64748b;font-size:13px;">邮箱</td><td style="padding:8px 16px;border-bottom:1px solid #eee;font-size:13px;">{email}</td></tr>
         <tr><td style="padding:8px 16px;color:#64748b;font-size:13px;">提交时间</td><td style="padding:8px 16px;font-size:13px;">{time}</td></tr>
       </table>
@@ -133,6 +135,7 @@ export function getDefaultResultHtml(): string {
           <tr><td style="padding:10px 16px;border-bottom:1px solid #e2e8f0;color:#64748b;font-size:13px;">站点地址</td><td style="padding:10px 16px;border-bottom:1px solid #e2e8f0;font-size:13px;"><a href="{url}" style="color:#2563eb;text-decoration:none;font-weight:500;">{url}</a></td></tr>
           {originalUrlRow}
           {descriptionRow}
+          {feedsRow}
           {reasonRow}
         </table>
         <p style="font-size:12px;color:#94a3b8;text-align:center;margin-top:24px;">此邮件由友链审核系统自动发送，请勿回复。</p>
@@ -161,6 +164,9 @@ function mergeTemplate(template: string, data: SubmissionInfo): string {
   const originalUrlRow = data.type === 'update' && data.originalUrl
     ? `<tr><td style="padding:8px 16px;border-bottom:1px solid #eee;color:#64748b;font-size:13px;">原站点地址</td><td style="padding:8px 16px;border-bottom:1px solid #eee;font-size:13px;">${data.originalUrl}</td></tr>`
     : ''
+  const feedsRow = data.feeds
+    ? `<tr><td style="padding:8px 16px;border-bottom:1px solid #eee;color:#64748b;font-size:13px;">RSS 订阅</td><td style="padding:8px 16px;border-bottom:1px solid #eee;font-size:13px;"><a href="${data.feeds}" style="color:#2563eb;text-decoration:none;">${data.feeds}</a></td></tr>`
+    : ''
   const map: Record<string, string> = {
     '{name}': data.name,
     '{url}': data.url,
@@ -171,6 +177,7 @@ function mergeTemplate(template: string, data: SubmissionInfo): string {
     '{originalUrl}': data.originalUrl || '',
     '{time}': data.createdAt.toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' }),
     '{originalUrlRow}': originalUrlRow,
+    '{feedsRow}': feedsRow,
     '{adminUrl}': adminUrl,
   }
   let result = template
@@ -189,6 +196,9 @@ function mergeResultTemplate(template: string, data: SubmissionInfo, status: 'ap
   const descriptionRow = data.description
     ? `<tr><td style="padding:8px 16px;border-bottom:1px solid #eee;color:#64748b;font-size:13px;">站点描述</td><td style="padding:8px 16px;border-bottom:1px solid #eee;font-size:13px;">${data.description}</td></tr>`
     : ''
+  const feedsRow = data.feeds
+    ? `<tr><td style="padding:8px 16px;border-bottom:1px solid #eee;color:#64748b;font-size:13px;">RSS 订阅</td><td style="padding:8px 16px;border-bottom:1px solid #eee;font-size:13px;"><a href="${data.feeds}" style="color:#2563eb;text-decoration:none;">${data.feeds}</a></td></tr>`
+    : ''
   const reasonRow = data.reason
     ? `<tr><td style="padding:8px 16px;color:#64748b;font-size:13px;vertical-align:top;padding-top:8px;">拒绝原因</td><td style="padding:8px 16px;font-size:13px;color:#dc2626;background:#fef2f2;border-radius:4px;">${mdToHtml(data.reason)}</td></tr>`
     : ''
@@ -203,6 +213,7 @@ function mergeResultTemplate(template: string, data: SubmissionInfo, status: 'ap
     '{time}': data.createdAt.toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' }),
     '{originalUrlRow}': originalUrlRow,
     '{descriptionRow}': descriptionRow,
+    '{feedsRow}': feedsRow,
     '{reasonRow}': reasonRow,
     '{adminUrl}': adminUrl,
     '{resultTitle}': isApproved ? '申请已通过' : '申请未通过',
