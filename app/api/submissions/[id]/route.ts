@@ -84,6 +84,7 @@ export async function PATCH(
         url: submission.url,
         description: submission.description,
         avatar: submission.avatar,
+        feeds: submission.feeds,
         email: submission.email,
         type: submission.type,
         originalUrl: submission.originalUrl,
