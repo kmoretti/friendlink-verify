@@ -135,13 +135,6 @@ export async function POST(request: Request) {
       )
     }
 
-    if (!email) {
-      return NextResponse.json(
-        { error: '邮箱不能为空' },
-        { status: 400, headers: corsHeaders }
-      )
-    }
-
     const urlPattern = /^https?:\/\/.+/i
     if (!urlPattern.test(url)) {
       return NextResponse.json(

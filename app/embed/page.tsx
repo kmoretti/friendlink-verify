@@ -247,10 +247,9 @@ function EmbedForm() {
 
         <div style={{ marginBottom: 18 }}>
           <label style={s('l')}>
-            邮箱 <span style={{ color: '#ef4444' }}>*</span>
+            邮箱
           </label>
           <input
-            required
             type="email"
             value={form.email}
             onChange={(e) => setForm({ ...form, email: e.target.value })}
