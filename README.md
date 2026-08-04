@@ -55,7 +55,7 @@
 | `NEXT_PUBLIC_APP_URL` | 推荐 | 部署后的域名，如 `https://your-app.vercel.app`（不设则邮件链接和嵌入脚本可能异常） |
 | `GITHUB_TOKEN` | 否 | GitHub Personal Access Token |
 | `GITHUB_REPO` | 否 | 仓库名 `owner/repo` |
-| `GITHUB_FILE_PATH` | 否 | 友链文件路径，如 `link.yml` |
+| `GITHUB_FILE_PATH` | 否 | 仓库相对路径，如 `link.yml` 或 `source/_data/link.yml`，不要以 `/` 开头 |
 | `EMAIL_USER` | 否 | SMTP 发件邮箱 |
 | `EMAIL_PASS` | 否 | SMTP 授权码 |
 | `EMAIL_NAME` | 否 | 发件人显示名称（默认 `EMAIL_USER`） |
@@ -81,7 +81,7 @@
 2. 点击 **Generate new token**，Note 填 `friendlink-verify`
 3. Expiration 建议选 **No expiration**
 4. 按上表勾选 → Generate → **复制 token**
-5. 设置环境变量 `GITHUB_TOKEN`、`GITHUB_REPO`（`owner/repo`）、`GITHUB_FILE_PATH`（如 `link.yml`）
+5. 设置环境变量 `GITHUB_TOKEN`、`GITHUB_REPO`（`owner/repo`）、`GITHUB_FILE_PATH`（如 `link.yml`）。路径应使用仓库相对路径；应用会自动移除误填的开头 `/`。
 
 ## 本地开发
 

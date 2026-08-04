@@ -33,10 +33,18 @@ interface GitHubConfig {
   path: string
 }
 
+function normalizeGitHubPath(path: string): string {
+  // GitHub Contents API expects a repository-relative POSIX path.
+  // Accept a leading slash or Windows separators in environment variables,
+  // but never send them to the API.
+  return path.trim().replace(/\\/g, '/').replace(/^\/+/, '')
+}
+
 function getConfig(): GitHubConfig | null {
   const token = process.env.GITHUB_TOKEN
   const repo = process.env.GITHUB_REPO
-  const path = process.env.GITHUB_FILE_PATH
+  const rawPath = process.env.GITHUB_FILE_PATH
+  const path = rawPath ? normalizeGitHubPath(rawPath) : ''
 
   if (!token || !repo || !path) return null
   return { token, repo, path }
