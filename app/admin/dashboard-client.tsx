@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import toast from 'react-hot-toast'
 import SettingsPanel from '@/components/admin/SettingsPanel'
+import LinkGroupManager from '@/components/admin/LinkGroupManager'
 import SubmissionTable from '@/components/admin/SubmissionTable'
 
 interface Submission {
@@ -28,6 +29,8 @@ interface GitHubStatus {
   repo?: string
   path?: string
 }
+
+const DEFAULT_GROUP_NAME = '网上邻居'
 
 const STAT_STYLES: Record<string, { icon: string, bar: string, bg: string, text: string }> = {
   total: {
@@ -222,8 +225,12 @@ export default function AdminDashboard() {
       if (res.ok) {
         const data = await res.json()
         if (data.classNames && data.classNames.length > 0) {
-          setClassNames(data.classNames)
-          setSelectedClass(data.classNames[0])
+          const names = [
+            DEFAULT_GROUP_NAME,
+            ...data.classNames.filter((name: string) => name !== DEFAULT_GROUP_NAME),
+          ]
+          setClassNames(names)
+          setSelectedClass(DEFAULT_GROUP_NAME)
           setShowClassModal(true)
           return
         }
@@ -392,6 +399,7 @@ export default function AdminDashboard() {
         </div>
 
         <SettingsPanel />
+        <LinkGroupManager />
 
         <SubmissionTable
           submissions={submissions}

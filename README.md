@@ -22,7 +22,9 @@
 
 - **表单嵌入** — Iframe、Script、自包含 HTML、Hexo/Butterfly 四种方式，支持新增和更新友链
 - **审核管理** — 后台面板查看/筛选/审核待处理申请，支持通过/拒绝（可填写拒绝原因）
-- **分组选择** — 通过时选择友链分组（对应 `class_name`），自动追加到 YAML 对应位置
+- **分组选择** — 通过时默认选中“网上邻居”，也可切换友链分组（对应 `class_name`），自动追加到 YAML 对应位置
+- **友链分组管理** — 后台直接读取 GitHub YAML，支持新建、编辑、移动已通过友链和编辑分组；非空分组不可删除
+- **友链字段编辑** — 支持编辑原有字段，并以逗号分隔维护 `tags`；不增加 `blog` 或 `color`
 - **GitHub 自动推送** — 审核通过后自动追加或更新 YAML 到仓库
 - **邮件通知** — 新提交通知管理员 + 审核结果通知提交者（模板可后台编辑，支持 Markdown，邮箱为选填）
 - **RSS 订阅** — 提交时可填写 RSS 订阅地址，审核通过后自动写入 YAML `feeds` 字段
@@ -1247,6 +1249,7 @@ render();
   - **通过（更新）** — 检测 YAML 截图字段约定（同申请），跳过分组选择，直接确认
   - **拒绝** — 弹出 Markdown 编辑框，支持输入拒绝原因，可选 OwO 表情，原因随邮件发送
   - **删除** — 自定义确认弹窗，删除数据库记录
+- **友链管理** — 读取 GitHub `links.yml`，支持新建/编辑分组、编辑和移动已通过友链、维护 Tags；非空分组不可删除
 - **设置面板** — 标签页切换（自动清理 / 表情包 / 邮件通知）：
   - **自动清理** — 按状态分别设置保留天数，打开后台时自动清理（非定时触发）
   - **表情包设置** — 配置 OwO JSON 链接，拒绝弹窗中显示表情选择器
@@ -1292,11 +1295,11 @@ render();
 
 ## link.yml 格式
 
-审核通过后，友链数据以 Butterfly YAML 格式推送到 GitHub：
+审核通过后，友链数据继续以原有 Butterfly YAML 格式推送到 GitHub。系统保留既有字段名，只额外支持可选的 `tags` 数组：
 
 ```yaml
-- class_name: 友情链接
-  class_desc: 我的小伙伴们
+- class_name: 网上邻居
+  class_desc: 我的网络朋友们~
   link_list:
     - name: 站点名称
       link: https://example.com
@@ -1305,7 +1308,14 @@ render();
       feeds: https://blog.example.com/atom.xml   # RSS 订阅地址
       siteshot: https://example.com/screenshot.png   # 也兼容 topimg 字段
       descr: 站点描述
+      tags:
+        - 技术
+        - 大佬
 ```
+
+默认分组为 `网上邻居`，描述为 `我的网络朋友们~`。新增审核默认选中该分组；如果 YAML 中不存在，审核写入时会自动创建。后台分组管理以 GitHub YAML 为准，分组和友链保存操作会立即提交到 GitHub。
+
+后台编辑友链时，Tags 使用逗号分隔，例如：`技术, 大佬`。保存时会自动去除首尾空格并去重；清空 Tags 会删除 YAML 中的 `tags` 字段。后台不支持删除单条友链，分组只有在空置时才能删除。
 
 系统自动适配 `siteshot` 和 `topimg` 两种截图字段名：
 
@@ -1328,13 +1338,14 @@ render();
 │   └── api/                  # API 路由
 │       ├── auth/             # 登录/登出/鉴权
 │       ├── submissions/      # 提交/审核/清理
+│       ├── links/            # 已通过友链分组和字段管理
 │       └── admin/settings/   # 后台设置
 ├── components/
 │   └── admin/                # 后台界面组件
 ├── lib/
 │   ├── db.ts                 # MongoDB 连接
 │   ├── auth.ts               # JWT 鉴权
-│   ├── github.ts             # GitHub API
+│   ├── github.ts             # GitHub API、YAML 和友链分组管理
 │   ├── email.ts              # SMTP 邮件
 │   └── models/               # 数据模型
 └── env.example               # 环境变量模板
