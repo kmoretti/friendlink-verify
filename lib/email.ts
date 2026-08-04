@@ -1,6 +1,5 @@
 import nodemailer from 'nodemailer'
-import dbConnect from '@/lib/db'
-import Config from '@/lib/models/config'
+import { getConfigRepository } from '@/lib/database/repositories'
 
 interface SmtpConfig {
   user: string
@@ -46,9 +45,8 @@ function getSmtpConfig(requireRecipient = true): SmtpConfig | null {
 
 async function getConfig(key: string, fallback: string): Promise<string> {
   try {
-    await dbConnect()
-    const doc = await Config.findOne({ key })
-    if (doc && doc.value.trim()) return doc.value
+    const value = await getConfigRepository().get(key)
+    if (value?.trim()) return value
   } catch {
     // fallback
   }

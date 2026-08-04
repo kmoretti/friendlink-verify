@@ -1,0 +1,80 @@
+# Local MongoDB deployment.
+# Set MONGO_INITDB_ROOT_USERNAME and MONGO_INITDB_ROOT_PASSWORD in the
+# shell or an untracked .env. MONGODB_URI may be supplied explicitly; when it
+# is omitted, Compose builds an URI that reaches the bundled service as `mongo`.
+services:
+  app:
+    image: ${IMAGE_NAME:-friendlink-verify:local}
+    build:
+      context: .
+      dockerfile: Dockerfile
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      DATABASE_PROVIDER: mongodb
+      MONGODB_URI: ${MONGODB_URI:-mongodb://${MONGO_INITDB_ROOT_USERNAME:?Set MONGO_INITDB_ROOT_USERNAME}:${MONGO_INITDB_ROOT_PASSWORD:?Set MONGO_INITDB_ROOT_PASSWORD}@mongo:27017/${MONGO_DATABASE:-friendlink}?authSource=admin}
+      NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
+    ports:
+      - "3000:3000"
+    depends_on:
+      mongo:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - >-
+          fetch('http://127.0.0.1:3000/api/health?ready=1').then(r =>
+          process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  migrate:
+    image: ${IMAGE_NAME:-friendlink-verify:local}
+    build:
+      context: .
+      dockerfile: Dockerfile
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      DATABASE_PROVIDER: mongodb
+      MONGODB_URI: ${MONGODB_URI:-mongodb://${MONGO_INITDB_ROOT_USERNAME:?Set MONGO_INITDB_ROOT_USERNAME}:${MONGO_INITDB_ROOT_PASSWORD:?Set MONGO_INITDB_ROOT_PASSWORD}@mongo:27017/${MONGO_DATABASE:-friendlink}?authSource=admin}
+    depends_on:
+      mongo:
+        condition: service_healthy
+    # Run the project's one-shot migration contract before starting app.
+    command: ["npm", "run", "db:migrate"]
+    restart: "no"
+
+  mongo:
+    image: mongo:8
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_INITDB_ROOT_USERNAME:?Set MONGO_INITDB_ROOT_USERNAME in the environment}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_INITDB_ROOT_PASSWORD:?Set MONGO_INITDB_ROOT_PASSWORD in the environment}
+      MONGO_INITDB_DATABASE: ${MONGO_DATABASE:-friendlink}
+    volumes:
+      - mongo_data:/data/db
+    restart: unless-stopped
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >-
+          mongosh --quiet --host 127.0.0.1 --username "$${MONGO_INITDB_ROOT_USERNAME}"
+          --password "$${MONGO_INITDB_ROOT_PASSWORD}" --authenticationDatabase admin
+          --eval "db.adminCommand({ ping: 1 }).ok" | grep -q 1
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+
+volumes:
+  mongo_data:
+    name: friendlink_verify_mongo_data

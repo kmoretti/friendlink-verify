@@ -57,7 +57,7 @@ sequenceDiagram
   participant U as 用户
   participant F as EmbedForm
   participant API as POST submissions
-  participant DB as MongoDB
+  participant DB as selected database
   participant E as Email
 
   U->>F: 填写站点信息
@@ -68,7 +68,7 @@ sequenceDiagram
   API-->>F: 201 Submission
 ```
 
-事实：`POST` 至少校验 `name`、`url`、`avatar`、`friendslink`；更新类型额外校验 `originalUrl`；只对主 `url` 检查 `http(s)` 开头（`app/api/submissions/route.ts:115-172`）。
+事实：`POST` 至少校验 `name`、`url`、`avatar`、`friendslink`；更新类型额外校验 `originalUrl`；只对主 `url` 检查 `http(s)` 开头（`app/api/submissions/route.ts:122-178`）。
 
 高可信风险：其他 URL、邮箱、长度和 JSON 运行时类型没有统一校验；邮件模板拼接也未统一 HTML 转义（`lib/email.ts:165-239`）。
 
@@ -108,7 +108,7 @@ flowchart TD
   Class --> Add[addLink]
   Add --> Write[GitHub 写回]
   Update --> Write
-  Write --> Save[MongoDB status=approved]
+  Write --> Save[当前数据库 status=approved]
   Save --> ResultMail[可选结果邮件]
 ```
 
@@ -116,7 +116,7 @@ flowchart TD
 
 更新映射：`updateLink` 在原分组中替换 name/link/avatar/descr，保留或更新 RSS、友链页、截图和 tags；后台管理还支持跨分组移动（`lib/github.ts:339-388,473-523`）。
 
-一致性边界：GitHub 写回、MongoDB save、邮件发送不是同一事务。GitHub 成功但数据库保存失败时，远程文件可能已更新而提交仍是 pending；邮件失败不会回滚前两者（`app/api/submissions/[id]/route.ts:46-100`）。
+一致性边界：GitHub 写回、当前数据库 save、邮件发送不是同一事务。GitHub 成功但数据库保存失败时，远程文件可能已更新而提交仍是 pending；邮件失败不会回滚前两者（`app/api/submissions/[id]/route.ts:25-80`）。
 
 ## 审核拒绝流程
 
@@ -137,13 +137,13 @@ flowchart TD
 ```text
 GET /api/submissions?page&p=...&limit=...
   → session 验证
-  → MongoDB 连接
+  → 当前数据库 provider 连接
   → pending/approved/rejected 分别读取保留天数
   → 按 status + createdAt 删除过期记录
   → sort(createdAt desc) + skip/limit
 ```
 
-默认保留：pending 7 天、approved 30 天、rejected 30 天（`app/api/submissions/route.ts:9-24,64-101`）。清理触发点是管理员列表 API，不是独立定时任务；基准是 `createdAt`，不是状态变更时间。
+默认保留：pending 7 天、approved 30 天、rejected 30 天（`app/api/submissions/route.ts:8-30,75-109`）。清理触发点是管理员列表 API，不是独立定时任务；基准是 `createdAt`，不是状态变更时间。
 
 ### 公开查询
 
@@ -154,7 +154,7 @@ GET /api/submissions?page&p=...&limit=...
 - 只投影业务字段 `name description friendslink status type feeds`；Mongoose 默认 `_id` 是否序列化保留应以运行时验证为准。
 - 没有分页或结果上限，设置 `Access-Control-Allow-Origin: *`。
 
-证据：`app/api/submissions/route.ts:43-61`。
+证据：`app/api/submissions/route.ts:39-67`。
 
 ## GitHub YAML 数据流
 
@@ -186,7 +186,7 @@ GET /api/submissions?page&p=...&limit=...
 
 - 管理员通知：POST 创建记录后调用 `sendNotification`；需要 SMTP 基础配置和 `EMAIL_RECIPIENT`。
 - 申请者通知：审核保存状态后调用 `sendResultNotification`；需要申请记录有 email。
-- 模板来源：先读 MongoDB `Config`，空值/异常回退默认模板。
+- 模板来源：先读当前数据库 provider 的 `Config`，空值/异常回退默认模板。
 - 占位符：在 `lib/email.ts:165-239` 构造；包括 name、url、type、time、原 URL 行、友链页行、RSS 行、结果标题和拒绝原因行。
 
 邮件失败只记录日志，不写入通知状态；这是可观测性和补偿的主要缺口。

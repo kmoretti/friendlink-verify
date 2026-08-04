@@ -4,11 +4,11 @@
 
 项目配置分为三层：
 
-1. **环境变量**：部署密钥、数据库、管理员账号、GitHub、SMTP、公开 URL 和暗色时间段。
-2. **MongoDB `Config` 集合**：后台可编辑的清理策略、邮件模板和 OwO URL。
+1. **环境变量**：部署密钥、数据库 provider、管理员账号、GitHub、SMTP、公开 URL 和暗色时间段。
+2. **数据库 `Config` 存储**：MongoDB、SQLite 或 MySQL 中都保存后台可编辑的清理策略、邮件模板和 OwO URL。
 3. **代码默认值**：环境变量缺失时的部分 fallback，以及数据库配置不存在时的默认清理天数/邮件模板。
 
-证据：`env.example:1-29`、`lib/models/config.ts:3-14`、`app/api/admin/settings/route.ts:7-25`、`lib/email.ts:75-150`。
+证据：`env.example:1-41`、`lib/database/config.ts:1-40`、`lib/database/repositories.ts`、`app/api/admin/settings/route.ts:1-75`、`lib/email.ts:75-150`。
 
 ## 环境变量
 
@@ -16,7 +16,10 @@
 
 | 变量 | 用途 | 是否实际硬依赖 | 来源/行为 |
 |---|---|---|---|
-| `MONGODB_URI` | MongoDB 连接字符串 | 是 | `lib/db.ts:18-23` 缺失即抛错 |
+| `DATABASE_PROVIDER` | `mongodb`、`sqlite` 或 `mysql` | 否，缺省 mongodb | `lib/database/config.ts:10-17` |
+| `MONGODB_URI` | MongoDB 连接字符串 | provider=mongodb 时 | `lib/database/config.ts:20-24`；Mongo 兼容连接仍由 `lib/db.ts` 使用 |
+| `SQLITE_PATH` | SQLite 文件路径 | provider=sqlite 时可选 | 默认 `/data/friendlink.db`，见 `lib/database/config.ts:26-28` |
+| `MYSQL_URL` | MySQL 连接字符串 | provider=mysql 时 | `lib/database/config.ts:30-34` |
 | `ADMIN_USERNAME` | 管理员用户名 | 登录功能是 | `lib/auth.ts:32-37` 直接比较 |
 | `ADMIN_PASSWORD` | 管理员密码 | 登录功能是 | `lib/auth.ts:32-37` 直接比较 |
 | `JWT_SECRET` | JWT 签名密钥 | 生产必须 | `lib/auth.ts:4-6` 缺失时存在固定 fallback，不应依赖 |
@@ -42,7 +45,7 @@
 | `GITHUB_REPO` | `owner/repo` | 同上 |
 | `GITHUB_FILE_PATH` | 目标 YAML 路径，如 `link.yml` | 同上 |
 
-读取位置：`lib/github.ts:36-43`。GitHub 功能在配置上是可选的，但在当前审核通过实现中，如果未配置会返回 502 而不是仅跳过同步（`app/api/submissions/[id]/route.ts:46-77`）。
+读取位置：`lib/github.ts:36-43`。GitHub 功能在配置上是可选的，但在当前审核通过实现中，如果未配置会返回 502 而不是仅跳过同步（`app/api/submissions/[id]/route.ts:25-61`）。
 
 ### SMTP 通知
 
@@ -57,7 +60,7 @@
 
 行为定义：`lib/email.ts:28-45,256-295`。后台 `emailConfigured` 使用 `isEmailConfigured()`，该判断不要求 `EMAIL_RECIPIENT`，但管理员通知的 `getSmtpConfig()` 要求它，存在显示状态与实际通知条件不完全一致的风险。
 
-## MongoDB Config 键
+## Config 键（所有数据库）
 
 这些键通过 `/api/admin/settings` 读写，值最终都是字符串；数字由 API 读取时转换。
 
@@ -81,11 +84,11 @@
 ```mermaid
 flowchart TD
   Env[部署环境变量] --> Auth[lib/auth.ts]
-  Env --> DB[lib/db.ts]
+  Env --> DB[Database Provider]
   Env --> GH[lib/github.ts]
   Env --> SMTP[lib/email.ts]
   Env --> Theme[app/layout.tsx]
-  DB --> Config[(MongoDB Config)]
+  DB --> Config[(Submission/Config Repository)]
   Config --> SettingsAPI[/api/admin/settings]
   SettingsAPI --> SettingsUI[SettingsPanel]
   Config --> EmailTemplate[邮件模板读取]
@@ -106,6 +109,6 @@ flowchart TD
 2. `SettingsPanel` GET `/api/admin/settings` 初始化。
 3. 修改某一 Tab：清理天数、OwO URL 或邮件模板。
 4. PUT `/api/admin/settings`；数字字段必须是大于等于 1 的整数。
-5. 服务端逐项 `findOneAndUpdate(..., upsert: true)` 写入 Config（`app/api/admin/settings/route.ts:19-25,54-103`）。
+5. 服务端逐项通过 Config Repository upsert 写入当前 provider（`app/api/admin/settings/route.ts:12-75`）。
 
 > PUT 没有事务；一次保存包含多个字段时，中途异常可能造成部分设置已经持久化。

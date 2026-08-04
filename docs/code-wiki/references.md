@@ -88,7 +88,7 @@
 
 ### 状态筛选是当前页本地筛选
 
-- 后端分页无 status 参数：`app/api/submissions/route.ts:64-101`
+- 后端管理员列表无 status 参数；公开列表支持 status 并由 Repository 下沉：`app/api/submissions/route.ts:39-109`
 - 前端本地过滤：`components/admin/SubmissionTable.tsx:49-56`
 - 统计也从当前页数组计算：`app/admin/dashboard-client.tsx:318-323`。
 
@@ -103,10 +103,10 @@
 1. 固定 JWT fallback secret：`lib/auth.ts:4-6`。
 2. JWT payload role 未运行时校验，管理员 API 主要只判断 session 存在：`lib/auth.ts:16-30`、`app/api/submissions/[id]/route.ts:13-16`。
 3. GitHub 辅助查询在 session 检查前返回：`app/api/submissions/route.ts:29-41`。
-4. 公开查询无分页/结果上限，搜索值直接作为正则：`app/api/submissions/route.ts:43-61`。
+4. 公开查询当前使用较大固定上限，仍无真正分页；搜索由各数据库 Repository 实现：`app/api/submissions/route.ts:39-67`。
 5. POST 和设置 PUT 缺少统一运行时 schema/长度验证：`app/api/submissions/route.ts:118-161`、`app/api/admin/settings/route.ts:54-103`。
 6. 邮件模板、用户字段和拒绝原因没有统一 HTML 转义：`lib/email.ts:152-239`。
-7. GitHub、MongoDB、邮件之间无事务、补偿或审核幂等：`app/api/submissions/[id]/route.ts:46-100`。
+7. GitHub、数据库、邮件之间无事务或补偿；审核已增加数据库 claim，但外部写入仍需隔离环境验证：`app/api/submissions/[id]/route.ts:18-87`。
 8. GitHub YAML 做基本运行时结构校验，但仍会全量重写；新增审核没有重复检查，后台编辑会检查目标分组内重复链接：`lib/github.ts:160-196,224-241,473-523`。
 9. SMTP 关闭证书校验：`lib/email.ts:62-72`。
 10. OwO 外部图标通过 `dangerouslySetInnerHTML` 注入：`app/admin/dashboard-client.tsx:141-154,495-498`。

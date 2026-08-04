@@ -27,7 +27,7 @@
 
 ```text
 外部页面 → Iframe/动态 Iframe → EmbedForm.handleSubmit
-  → POST /api/submissions → Submission.create → pending
+  → POST /api/submissions → Repository.create → pending
 ```
 
 ### 维护注意事项
@@ -103,36 +103,37 @@ app/admin/page.tsx
 
 ### 核心文件
 
-- `app/api/submissions/route.ts:26-172`：GET/OPTIONS/POST。
-- `app/api/submissions/[id]/route.ts:8-135`：PATCH/DELETE。
-- `lib/models/submission.ts:3-44`：提交 schema。
+- `app/api/submissions/route.ts:25-178`：GET/OPTIONS/POST。
+- `app/api/submissions/[id]/route.ts:8-105`：PATCH/DELETE。
+- `lib/database/types.ts:1-46`：数据库无关领域记录和 Repository 接口。
 
 ### 依赖
 
-`submissions` 路由导入 `dbConnect`、`Submission`、`Config`、`getSession`、GitHub 读查询函数和管理员邮件函数（`app/api/submissions/route.ts:1-7`）；单条路由导入数据库、认证、GitHub 写函数和结果邮件（`app/api/submissions/[id]/route.ts:1-6`）。
+`submissions` 路由导入 Repository factory、`getSession`、GitHub 读查询函数和管理员邮件函数（`app/api/submissions/route.ts:1-7`）；单条路由通过 Repository 读取/更新记录，并协调认证、GitHub 和结果邮件（`app/api/submissions/[id]/route.ts:1-7`）。
 
 ### 维护注意事项
 
 - POST 对主 `url` 只做简单协议正则，其他 URL、邮箱、字段长度没有统一 schema 验证（`app/api/submissions/route.ts:118-145`）。
-- 公开查询无需登录、无分页，搜索直接进入 MongoDB `$regex`（`app/api/submissions/route.ts:43-61`）。
+- 公开查询无需登录，搜索通过 Repository 下沉到 provider；Mongo adapter 内部使用转义后的 `$regex`，SQL adapter 使用参数化 `LIKE`（`app/api/submissions/route.ts:39-67`、`lib/database/*/repositories.ts`）。
 - `github=1`、`classNames=1`、`screenshotField=1` 位于管理员 session 检查之前（`app/api/submissions/route.ts:29-41,64-67`）。
 - 清理发生在管理员列表请求内，按 `createdAt` 和状态专属保留天数执行（`app/api/submissions/route.ts:70-84`）。
 
-## 5. MongoDB 持久化模块
+## 5. 数据库 Repository 模块
 
 ### 职责
 
-缓存 Mongoose 连接并定义 `Submission`/`Config` 两种文档模型。
+根据 `DATABASE_PROVIDER` 选择 MongoDB/Mongoose、SQLite/Drizzle 或 MySQL/Drizzle，实现统一的 `SubmissionRepository` 和 `ConfigRepository`。GitHub YAML 不属于该模块的数据范围。
 
 ### 核心文件
 
 - `lib/db.ts:1-35`：`globalThis._mongooseCache` 单例连接/Promise 缓存。
-- `lib/models/submission.ts:3-44`：站点字段、申请类型、审核状态、timestamps。
+- `lib/models/submission.ts:3-47`：Mongo adapter 的站点字段、申请类型、审核状态、timestamps；SQL schema 位于 `lib/database/sql/schema.ts`。
 - `lib/models/config.ts:3-14`：唯一 key + 字符串 value。
 
 ### 维护注意事项
 
-- `MONGODB_URI` 缺失时 `dbConnect` 抛错。
+- `DATABASE_PROVIDER` 缺失时默认 MongoDB；provider 对应连接变量缺失时抛出配置错误。
+- MongoDB 仍由 `lib/db.ts` 缓存 Mongoose 连接；SQL 数据库由 `lib/database/sql/*` 管理连接。
 - `Submission` 没有拒绝原因字段；结果邮件中的 reason 不会持久化。
 - 没有从模型层看到 URL 唯一索引、状态变更审计或通知投递状态字段。
 
@@ -195,7 +196,7 @@ app/admin/page.tsx
 
 ### 职责
 
-使用 SMTP 发送管理员新提交通知和申请者审核结果通知；模板可从 MongoDB `Config` 覆盖。
+使用 SMTP 发送管理员新提交通知和申请者审核结果通知；模板可从当前数据库 provider 的 `Config` 存储覆盖。
 
 ### 核心文件与符号
 
@@ -222,9 +223,9 @@ app/admin/page.tsx
 
 ### 核心文件
 
-- `app/api/admin/settings/route.ts:27-103`：鉴权、读取默认值、逐项 upsert。
+- `app/api/admin/settings/route.ts:1-75`：鉴权、读取默认值、逐项 upsert。
 - `components/admin/SettingsPanel.tsx:8-316`：三个 Tab 的 UI、校验、保存和 Toast。
-- `lib/models/config.ts:3-14`：键值文档。
+- `lib/database/types.ts:41-46`：Config Repository 接口；Mongo/SQL 实现位于 `lib/database/*`。
 
 ### 维护注意事项
 

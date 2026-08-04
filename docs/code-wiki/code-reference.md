@@ -1,6 +1,6 @@
 # 关键代码索引
 
-> 行号以分析时提交 `83931d2` 的源码为准。此页选择影响启动、核心业务、外部边界和维护决策的符号，不罗列所有小函数。
+> 行号以本次多数据库改造后的工作树为准，后续代码变化可能使行号漂移。此页选择影响启动、核心业务、外部边界和维护决策的符号，不罗列所有小函数。
 
 ## 启动、页面与客户端协调
 
@@ -24,10 +24,14 @@
 | `verifyToken` | 函数 | `lib/auth.ts:16-23` | token → payload/null | `jwtVerify` 失败返回 null |
 | `getSession` | 函数 | `lib/auth.ts:25-30` | Cookie → session/null | 读取 `session` Cookie |
 | `isAdmin` | 函数 | `lib/auth.ts:32-37` | username/password → boolean | 与环境变量直接比较 |
+| `getDatabaseProvider` | 函数 | `lib/database/config.ts:10-17` | 环境变量 → provider | 缺省 mongodb，拒绝未知 provider |
 | `dbConnect` | 函数 | `lib/db.ts:18-35` | 无显式参数 → Mongoose | `globalThis._mongooseCache` 缓存连接和 Promise |
-| `ISubmission` | 接口 | `lib/models/submission.ts:3-18` | 申请/更新记录类型 | 站点字段、类型、状态、时间戳 |
+| `getSubmissionRepository` | 函数 | `lib/database/repositories.ts:5-13` | provider → Repository | Mongo/Mongoose 或 Drizzle SQL |
+| `SubmissionRepository` | 接口 | `lib/database/types.ts:28-39` | 数据库无关 CRUD | 统一 `_id`、分页、清理和 ping |
+| `ISubmission` | 接口 | `lib/models/submission.ts:3-18` | Mongo adapter/迁移源类型 | 站点字段、类型、状态、时间戳 |
 | `SubmissionSchema` | Schema | `lib/models/submission.ts:20-44` | MongoDB 文档约束 | enum 为 `apply/update` 和三种状态 |
-| `IConfig` | 接口 | `lib/models/config.ts:3-6` | 配置键值类型 | key/value 均为 string |
+| `IConfig` | 接口 | `lib/models/config.ts:3-6` | Mongo adapter 配置键值类型 | key/value 均为 string |
+| `ConfigRepository` | 接口 | `lib/database/types.ts:41-46` | 数据库无关配置读写 | 所有 provider 统一 get/set |
 | `ConfigSchema` | Schema | `lib/models/config.ts:8-11` | MongoDB 配置结构 | key unique |
 
 ## API Route Handlers
@@ -37,13 +41,14 @@
 | 登录 | `app/api/auth/login/route.ts:4-40` | 校验输入和账号，签发 Cookie | `isAdmin`、`createToken` |
 | 注销 | `app/api/auth/logout/route.ts:3-12` | 将 session Cookie maxAge 设为 0 | 无数据库依赖 |
 | 当前用户 | `app/api/auth/me/route.ts:4-10` | 返回认证状态和用户名 | `getSession` |
-| 提交 GET | `app/api/submissions/route.ts:26-102` | GitHub 状态/分组/截图辅助查询、公开查询、管理员清理+分页 | DB、认证、GitHub |
-| 提交 OPTIONS | `app/api/submissions/route.ts:104-113` | CORS 预检 | 允许 POST/OPTIONS |
-| 提交 POST | `app/api/submissions/route.ts:115-172` | 校验并创建 pending 记录 | DB、管理员邮件 |
-| 单条 PATCH | `app/api/submissions/[id]/route.ts:8-107` | 审核通过/拒绝 | DB、GitHub、结果邮件 |
-| 单条 DELETE | `app/api/submissions/[id]/route.ts:109-134` | 删除记录 | DB、session |
-| 设置 GET | `app/api/admin/settings/route.ts:27-52` | 组合默认值和持久化配置 | DB、邮件默认模板 |
-| 设置 PUT | `app/api/admin/settings/route.ts:54-103` | 校验并逐项 upsert | DB |
+| 健康检查 | `app/api/health/route.ts:1-21` | 存活或数据库 readiness | Repository、provider ping |
+| 提交 GET | `app/api/submissions/route.ts:25-109` | GitHub 状态/分组/截图辅助查询、公开查询、管理员清理+分页 | Repository、认证、GitHub |
+| 提交 OPTIONS | `app/api/submissions/route.ts:111-120` | CORS 预检 | 允许 POST/OPTIONS |
+| 提交 POST | `app/api/submissions/route.ts:122-178` | 校验并创建 pending 记录 | Repository、管理员邮件 |
+| 单条 PATCH | `app/api/submissions/[id]/route.ts:8-87` | 审核通过/拒绝 | Repository、GitHub、结果邮件 |
+| 单条 DELETE | `app/api/submissions/[id]/route.ts:90-105` | 删除记录 | Repository、session |
+| 设置 GET | `app/api/admin/settings/route.ts:24-43` | 组合默认值和持久化配置 | Repository、邮件默认模板 |
+| 设置 PUT | `app/api/admin/settings/route.ts:46-75` | 校验并逐项 upsert | Repository |
 | 友链管理 GET | `app/api/links/route.ts:1-21` | 读取 GitHub 分组 | session、GitHub |
 | 分组 POST | `app/api/links/groups/route.ts:1-31` | 新建分组 | session、GitHub |
 | 分组 PATCH/DELETE | `app/api/links/groups/[groupName]/route.ts:1-58` | 编辑/删除分组 | session、GitHub |
@@ -54,9 +59,19 @@
 | 符号 | 位置 | 输入/输出 | 关键行为 |
 |---|---|---|---|
 | `getConfig`（submissions） | `app/api/submissions/route.ts:21-24` | key → number | 读取状态保留天数，缺省使用默认值 |
-| `POST /api/submissions` | `app/api/submissions/route.ts:115-172` | JSON → 201 Submission | 要求 name/url/avatar/friendslink；更新要求 originalUrl；状态初始 pending |
+| `POST /api/submissions` | `app/api/submissions/route.ts:122-178` | JSON → 201 Submission | 要求 name/url/avatar/friendslink；更新要求 originalUrl；状态初始 pending |
 | `PATCH /api/submissions/:id` | `app/api/submissions/[id]/route.ts:8-107` | action JSON → 更新文档 | pending 才可处理；approved 先同步 GitHub |
 | `DELETE /api/submissions/:id` | `app/api/submissions/[id]/route.ts:109-134` | id → 删除结果 | 需要管理员 session |
+
+## 数据库适配器
+
+| 符号 | 位置 | 输入/输出 | 关键边界 |
+|---|---|---|---|
+| `MongoSubmissionRepository` / `MongoConfigRepository` | `lib/database/mongodb/repositories.ts` | Mongoose CRUD → 领域记录 | ObjectId 转字符串 `_id` |
+| `SqliteSubmissionRepository` / `SqliteConfigRepository` | `lib/database/sql/repositories.ts` | Drizzle + better-sqlite3 CRUD | SQLite 单实例、WAL |
+| `MysqlSubmissionRepository` / `MysqlConfigRepository` | `lib/database/sql/repositories.ts` | Drizzle + mysql2 CRUD | MySQL 8.4 Compose |
+| `migrateDatabase` | `scripts/database.ts` | provider → schema migration | Mongo 分支 no-op |
+| `migrate-from-mongodb` | `scripts/migrate-from-mongodb.ts` | Mongo → SQL dry-run/apply | 默认 dry-run、apply 幂等 upsert |
 
 ## GitHub 适配器
 
@@ -88,7 +103,8 @@
 | `sendNotification` | `lib/email.ts:256-272` | 提交 → 管理员邮件 | SMTP 未配置/失败不抛出给主流程 |
 | `sendResultNotification` | `lib/email.ts:274-291` | 状态结果 → 申请者邮件 | 没有邮箱或失败则跳过/记录 |
 | `isEmailConfigured` | `lib/email.ts:293-295` | 无 → boolean | 与管理员通知的 recipient 要求不完全相同 |
-| `setConfig` | `app/api/admin/settings/route.ts:19-25` | key/value → upsert | 多次调用不是事务 |
+| `setConfig` | `app/api/admin/settings/route.ts:18-20` | key/value → upsert | 多次调用不是事务 |
+| `parsePositiveInt` | `app/api/submissions/route.ts:20-23` | query string → 正整数 | 非法 page/limit 回退默认值 |
 
 ## 调用链速查
 
@@ -97,8 +113,8 @@
 ```text
 EmbedForm.handleSubmit
   → POST /api/submissions
-  → dbConnect
-  → Submission.create
+  → getSubmissionRepository()
+  → repository.create
   → sendNotification
   → getConfig / Nodemailer
 ```
@@ -111,7 +127,7 @@ AdminDashboard.handleAction
   → addLink
   → getYmlContent → yaml.load
   → writeYml → GitHub Contents API
-  → Submission.save
+  → repository.completeClaim(approved)
   → sendResultNotification
 ```
 
@@ -123,5 +139,5 @@ AdminDashboard.handleAction
   → updateLink(originalUrl)
   → sanitizeUrl + link_list.findIndex
   → writeYml
-  → Submission.save
+  → repository.completeClaim(approved)
 ```

@@ -1,0 +1,76 @@
+# Local MySQL deployment.
+# Set MYSQL_ROOT_PASSWORD, MYSQL_USER, MYSQL_PASSWORD, and optionally
+# MYSQL_DATABASE in the shell or an untracked .env before starting.
+services:
+  app:
+    image: ${IMAGE_NAME:-friendlink-verify:local}
+    build:
+      context: .
+      dockerfile: Dockerfile
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      DATABASE_PROVIDER: mysql
+      MYSQL_URL: ${MYSQL_URL:-mysql://${MYSQL_USER:?Set MYSQL_USER}:${MYSQL_PASSWORD:?Set MYSQL_PASSWORD}@mysql:3306/${MYSQL_DATABASE:-friendlink}}
+      NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
+    ports:
+      - "3000:3000"
+    depends_on:
+      mysql:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - >-
+          fetch('http://127.0.0.1:3000/api/health?ready=1').then(r =>
+          process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  migrate:
+    image: ${IMAGE_NAME:-friendlink-verify:local}
+    build:
+      context: .
+      dockerfile: Dockerfile
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      DATABASE_PROVIDER: mysql
+      MYSQL_URL: ${MYSQL_URL:-mysql://${MYSQL_USER:?Set MYSQL_USER}:${MYSQL_PASSWORD:?Set MYSQL_PASSWORD}@mysql:3306/${MYSQL_DATABASE:-friendlink}}
+    depends_on:
+      mysql:
+        condition: service_healthy
+    # The migration script is the follow-up interface agreed for this image.
+    # It is intentionally a one-shot service and must finish before app starts.
+    command: ["npm", "run", "db:migrate"]
+    restart: "no"
+
+  mysql:
+    image: mysql:8.4
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?Set MYSQL_ROOT_PASSWORD in the environment}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-friendlink}
+      MYSQL_USER: ${MYSQL_USER:?Set MYSQL_USER in the environment}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?Set MYSQL_PASSWORD in the environment}
+    volumes:
+      - mysql_data:/var/lib/mysql
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -u root -p\"$${MYSQL_ROOT_PASSWORD}\" --silent"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+
+volumes:
+  mysql_data:
+    name: friendlink_verify_mysql_data

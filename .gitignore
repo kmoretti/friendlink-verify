@@ -5,3 +5,10 @@ node_modules
 .env.*.local
 *.tsbuildinfo
 next-env.d.ts
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+.tmp-test/
+data/

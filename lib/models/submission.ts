@@ -13,6 +13,7 @@ export interface ISubmission extends Document {
   type: 'apply' | 'update'
   originalUrl: string
   status: 'pending' | 'approved' | 'rejected'
+  processingToken?: string
   createdAt: Date
   updatedAt: Date
 }
@@ -39,6 +40,7 @@ const SubmissionSchema = new Schema<ISubmission>(
       enum: ['pending', 'approved', 'rejected'],
       default: 'pending',
     },
+    processingToken: { type: String, default: null, select: false },
   },
   { timestamps: true }
 )

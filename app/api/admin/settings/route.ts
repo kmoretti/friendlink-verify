@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server'
-import dbConnect from '@/lib/db'
-import Config from '@/lib/models/config'
+import { getConfigRepository } from '@/lib/database/repositories'
 import { getSession } from '@/lib/auth'
 import { getDefaultSubject, getDefaultHtml, getDefaultResultSubject, getDefaultResultHtml, isEmailConfigured } from '@/lib/email'
 
@@ -11,27 +10,20 @@ const DEFAULTS = {
 }
 
 async function getConfig(key: string, fallback: number | string): Promise<number | string> {
-  const doc = await Config.findOne({ key })
-  if (doc && String(doc.value).trim()) return isNaN(Number(doc.value)) ? doc.value : Number(doc.value)
+  const value = await getConfigRepository().get(key)
+  if (value?.trim()) return isNaN(Number(value)) ? value : Number(value)
   return fallback
 }
 
 async function setConfig(key: string, value: string) {
-  await Config.findOneAndUpdate(
-    { key },
-    { value },
-    { upsert: true }
-  )
+  await getConfigRepository().set(key, value)
 }
 
 export async function GET() {
   const session = await getSession()
-  if (!session) {
-    return NextResponse.json({ error: '未授权' }, { status: 401 })
-  }
+  if (!session) return NextResponse.json({ error: '未授权' }, { status: 401 })
 
   try {
-    await dbConnect()
     const settings = {
       autoDeleteDays: Number(await getConfig('autoDeleteDays', DEFAULTS.autoDeleteDays)),
       autoDeleteApprovedDays: Number(await getConfig('autoDeleteApprovedDays', DEFAULTS.autoDeleteApprovedDays)),
@@ -53,50 +45,28 @@ export async function GET() {
 
 export async function PUT(request: Request) {
   const session = await getSession()
-  if (!session) {
-    return NextResponse.json({ error: '未授权' }, { status: 401 })
-  }
+  if (!session) return NextResponse.json({ error: '未授权' }, { status: 401 })
 
   try {
     const body = await request.json()
-    await dbConnect()
-
-    const numKeys = [
-      'autoDeleteDays',
-      'autoDeleteApprovedDays',
-      'autoDeleteRejectedDays',
-    ] as const
-
+    const numKeys = ['autoDeleteDays', 'autoDeleteApprovedDays', 'autoDeleteRejectedDays'] as const
     for (const key of numKeys) {
-      const value = body[key]
-      if (value !== undefined) {
-        const days = Number(value)
+      if (body[key] !== undefined) {
+        const days = Number(body[key])
         if (!Number.isInteger(days) || days < 1) {
-          return NextResponse.json(
-            { error: `"${key}" 必须为正整数` },
-            { status: 400 }
-          )
+          return NextResponse.json({ error: `"${key}" 必须为正整数` }, { status: 400 })
         }
         await setConfig(key, String(days))
       }
     }
 
     const strKeys = [
-      'emailSubjectApply',
-      'emailSubjectUpdate',
-      'emailSubjectApproved',
-      'emailSubjectRejected',
-      'emailBodyHtml',
-      'emailBodyResult',
-      'owoUrl',
+      'emailSubjectApply', 'emailSubjectUpdate', 'emailSubjectApproved',
+      'emailSubjectRejected', 'emailBodyHtml', 'emailBodyResult', 'owoUrl',
     ] as const
-
     for (const key of strKeys) {
-      if (body[key] !== undefined) {
-        await setConfig(key, String(body[key]))
-      }
+      if (body[key] !== undefined) await setConfig(key, String(body[key]))
     }
-
     return NextResponse.json({ ok: true })
   } catch {
     return NextResponse.json({ error: '更新设置失败' }, { status: 500 })

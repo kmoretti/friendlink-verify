@@ -1,12 +1,11 @@
 import { NextResponse } from 'next/server'
-import dbConnect from '@/lib/db'
-import Submission from '@/lib/models/submission'
-import Config from '@/lib/models/config'
+import { getConfigRepository, getSubmissionRepository } from '@/lib/database/repositories'
 import { getSession } from '@/lib/auth'
 import { getGitHubStatus, getClassNames, getScreenshotField } from '@/lib/github'
 import { sendNotification } from '@/lib/email'
+import type { CreateSubmissionInput, SubmissionStatus } from '@/lib/database/types'
 
-const STATUS_KEYS: Record<string, string> = {
+const STATUS_KEYS: Record<SubmissionStatus, string> = {
   pending: 'autoDeleteDays',
   approved: 'autoDeleteApprovedDays',
   rejected: 'autoDeleteRejectedDays',
@@ -18,9 +17,13 @@ const DEFAULTS: Record<string, number> = {
   autoDeleteRejectedDays: 30,
 }
 
-async function getConfig(key: string): Promise<number> {
-  const doc = await Config.findOne({ key })
-  return doc ? Number(doc.value) : DEFAULTS[key]
+function parsePositiveInt(value: string | null, fallback: number) {
+  const parsed = Number.parseInt(value || '', 10)
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback
+}
+
+function isText(value: unknown, maxLength = 5000): value is string {
+  return typeof value === 'string' && value.length <= maxLength
 }
 
 export async function GET(request: Request) {
@@ -42,14 +45,19 @@ export async function GET(request: Request) {
 
   if (searchParams.get('public') === '1') {
     try {
-      await dbConnect()
-      const filter: Record<string, unknown> = {}
       const status = searchParams.get('status')
-      if (status) filter.status = status
-      const search = searchParams.get('search')
-      if (search) filter.name = { $regex: search, $options: 'i' }
-      const submissions = await Submission.find(filter, 'name description friendslink status type feeds')
-        .sort({ createdAt: -1 }).lean()
+      const validStatus = status && ['pending', 'approved', 'rejected'].includes(status)
+        ? status as SubmissionStatus
+        : undefined
+      const result = await getSubmissionRepository().list({
+        page: 1,
+        limit: 10000,
+        status: validStatus,
+        search: searchParams.get('search') || undefined,
+      })
+      const submissions = result.submissions.map(({ name, description, friendslink, status, type, feeds }) => ({
+        name, description, friendslink, status, type, feeds,
+      }))
       return NextResponse.json({ submissions }, {
         headers: { 'Access-Control-Allow-Origin': '*' },
       })
@@ -67,37 +75,33 @@ export async function GET(request: Request) {
   }
 
   try {
-    await dbConnect()
+    const submissionRepository = getSubmissionRepository()
+    const configRepository = getConfigRepository()
 
     let totalCleaned = 0
-    for (const [status, configKey] of Object.entries(STATUS_KEYS)) {
-      const days = await getConfig(configKey)
+    for (const [status, configKey] of Object.entries(STATUS_KEYS) as Array<[SubmissionStatus, string]>) {
+      const days = await (async () => {
+        const value = await configRepository.get(configKey)
+        const parsed = value === null ? DEFAULTS[configKey] : Number(value)
+        return Number.isFinite(parsed) && parsed > 0 ? parsed : DEFAULTS[configKey]
+      })()
       const cutoff = new Date(Date.now() - days * 24 * 60 * 60 * 1000)
-      const result = await Submission.deleteMany({
-        status,
-        createdAt: { $lt: cutoff },
-      })
-      totalCleaned += result.deletedCount
+      totalCleaned += await submissionRepository.deleteExpired(status, cutoff)
     }
-    if (totalCleaned > 0) {
-      console.log(`自动清理了 ${totalCleaned} 条过期数据`)
-    }
+    if (totalCleaned > 0) console.log(`自动清理了 ${totalCleaned} 条过期数据`)
 
-    const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10))
-    const limit = Math.min(100, Math.max(1, parseInt(searchParams.get('limit') || '10', 10)))
-    const skip = (page - 1) * limit
+    const page = parsePositiveInt(searchParams.get('page'), 1)
+    const limit = Math.min(100, parsePositiveInt(searchParams.get('limit'), 10))
+    const result = await submissionRepository.list({ page, limit })
 
-    const [submissions, total] = await Promise.all([
-      Submission.find().sort({ createdAt: -1 }).skip(skip).limit(limit).lean(),
-      Submission.countDocuments(),
-    ])
-
-    return NextResponse.json({ submissions, total, page, totalPages: Math.ceil(total / limit) })
+    return NextResponse.json({
+      submissions: result.submissions,
+      total: result.total,
+      page,
+      totalPages: Math.ceil(result.total / limit),
+    })
   } catch {
-    return NextResponse.json(
-      { error: '获取提交列表失败' },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: '获取提交列表失败' }, { status: 500 })
   }
 }
 
@@ -117,56 +121,64 @@ export async function POST(request: Request) {
 
   try {
     const body = await request.json()
-    const { name, url, description, avatar, friendslink, feeds, siteshot, topimg, email, type, originalUrl } = body
+    if (!body || typeof body !== 'object' || Array.isArray(body)) {
+      return NextResponse.json({ error: '请求数据格式无效' }, { status: 400, headers: corsHeaders })
+    }
+    const { name, url, description, avatar, friendslink, feeds, siteshot, topimg, email, type, originalUrl } = body as Record<string, unknown>
 
-    if (!name || !url || !avatar || !friendslink) {
+    if (![name, url, avatar, friendslink].every((value) => isText(value) && value.trim())) {
       return NextResponse.json(
-        { error: '站点名称、地址、头像和友链页面不能为空' },
+        { error: '站点名称、地址、头像和友链页面不能为空且必须是文本' },
+        { status: 400, headers: corsHeaders }
+      )
+    }
+
+    const optionalFields = [description, feeds, siteshot, topimg, email, originalUrl]
+    if (optionalFields.some((value) => value !== undefined && !isText(value))) {
+      return NextResponse.json(
+        { error: '提交字段格式无效或内容过长' },
         { status: 400, headers: corsHeaders }
       )
     }
 
     const subType = type === 'update' ? 'update' : 'apply'
-
-    if (subType === 'update' && !originalUrl) {
+    if (subType === 'update' && (!isText(originalUrl) || !originalUrl.trim())) {
       return NextResponse.json(
         { error: '更新友链时必须提供原站点地址' },
         { status: 400, headers: corsHeaders }
       )
     }
 
-    const urlPattern = /^https?:\/\/.+/i
-    if (!urlPattern.test(url)) {
+    const nameText = name as string
+    const urlText = url as string
+    const avatarText = avatar as string
+    const friendslinkText = friendslink as string
+    if (!/^https?:\/\/.+/i.test(urlText)) {
       return NextResponse.json(
         { error: 'URL 必须以 http:// 或 https:// 开头' },
         { status: 400, headers: corsHeaders }
       )
     }
 
-    await dbConnect()
-
-    const submission = await Submission.create({
-      name,
-      url,
-      description: description || '',
-      avatar: avatar || '',
-      friendslink: friendslink || '',
-      feeds: feeds || '',
-      siteshot: siteshot || '',
-      topimg: topimg || '',
-      email: email || '',
+    const input: CreateSubmissionInput = {
+      name: nameText,
+      url: urlText,
+      description: (description as string | undefined) || '',
+      avatar: avatarText,
+      friendslink: friendslinkText,
+      feeds: (feeds as string | undefined) || '',
+      siteshot: (siteshot as string | undefined) || '',
+      topimg: (topimg as string | undefined) || '',
+      email: (email as string | undefined) || '',
       type: subType,
-      originalUrl: subType === 'update' ? originalUrl : '',
+      originalUrl: subType === 'update' ? originalUrl as string : '',
       status: 'pending',
-    })
-
+    }
+    const submission = await getSubmissionRepository().create(input)
     await sendNotification(submission)
 
     return NextResponse.json(submission, { status: 201, headers: corsHeaders })
   } catch {
-    return NextResponse.json(
-      { error: '提交失败' },
-      { status: 500, headers: corsHeaders }
-    )
+    return NextResponse.json({ error: '提交失败' }, { status: 500, headers: corsHeaders })
   }
 }

@@ -2,13 +2,14 @@
 
 ## 架构判断
 
-本项目是一个**单体式、请求驱动的 Next.js 全栈应用**：页面、客户端组件和 API Route Handlers 位于同一仓库、同一部署单元；MongoDB、GitHub 和 SMTP 是由服务端调用的外部边界。
+本项目是一个**单体式、请求驱动的 Next.js 全栈应用**：页面、客户端组件和 API Route Handlers 位于同一仓库、同一部署单元；数据库 provider（MongoDB、SQLite 或 MySQL）、GitHub 和 SMTP 是由服务端调用的外部边界。
 
 这是一个带有轻量适配器分层的客户端-服务端架构，而不是严格的 Clean Architecture 或微服务架构：
 
 - `app/` 同时承载页面路由和 API HTTP 边界。
 - `lib/` 将数据库、认证、邮件和 GitHub 集成抽出，形成可复用服务。
-- `lib/models/` 定义 Mongoose 文档结构。
+- `lib/database/` 通过 Repository 适配层隔离 MongoDB/Mongoose 与 SQLite/MySQL/Drizzle。
+- `lib/models/` 保留 MongoDB 文档结构，作为 Mongo adapter 和迁移源。
 - `components/` 承载后台客户端视图和交互状态。
 - API 路由直接编排模型与外部适配器，没有单独的 use-case/service 层。
 
@@ -22,7 +23,7 @@ flowchart LR
   Embed --> API[Next.js Route Handlers]
   Admin[管理员浏览器] --> AdminPage[/admin]
   AdminPage --> API
-  API --> Mongo[(MongoDB)]
+  API --> Database[(MongoDB / SQLite / MySQL)]
   API --> GitHub[GitHub Contents API]
   API --> SMTP[SMTP / Nodemailer]
   Deployer[部署者] --> Home[/ 首页 /]
@@ -42,8 +43,9 @@ flowchart LR
 | HTTP | `app/api/submissions/*` | 创建、查询、审核、删除 | 与 MongoDB、GitHub、SMTP 编排 |
 | HTTP | `app/api/admin/settings/*` | 读写管理配置 | 与 `Config` 模型协作 |
 | HTTP | `app/api/links/*` | 读取/编辑 GitHub 分组和已通过友链 | 与 GitHub 适配器协作 |
-| 领域/持久化 | `Submission`、`Config` | 文档 schema 和状态字段 | Mongoose/MongoDB |
-| 基础设施 | `lib/db.ts` | 连接缓存 | `MONGODB_URI` |
+| 领域/持久化 | `Submission`、`Config` | 申请记录和后台配置 | Repository；Mongo/Mongoose 或 Drizzle SQL |
+| 基础设施 | `lib/database/*` | provider 选择、连接和 Repository | `DATABASE_PROVIDER` + provider 专用变量 |
+| 兼容层 | `lib/db.ts`、`lib/models/*` | MongoDB 连接和迁移源 | `MONGODB_URI` |
 | 适配器 | `lib/github.ts` | Butterfly YAML 到 GitHub Contents API | `GITHUB_*` |
 | 适配器 | `lib/email.ts` | 模板渲染到 SMTP | `EMAIL_*`、`SMTP_*` |
 
@@ -59,18 +61,17 @@ graph TD
   Dashboard --> Settings[components/admin/SettingsPanel.tsx]
   AuthAPI[app/api/auth/*] --> Auth[lib/auth.ts]
   SubmissionAPI[app/api/submissions/*] --> Auth
-  SubmissionAPI --> DB[lib/db.ts]
-  SubmissionAPI --> SubmissionModel[lib/models/submission.ts]
+  SubmissionAPI --> DB[lib/database/repositories.ts]
   SubmissionAPI --> GitHub[lib/github.ts]
   SubmissionAPI --> Email[lib/email.ts]
-  SettingsAPI[app/api/admin/settings/route.ts] --> ConfigModel[lib/models/config.ts]
+  SettingsAPI[app/api/admin/settings/route.ts] --> ConfigRepo[lib/database/repositories.ts]
   LinksAPI[app/api/links/*] --> GitHub
   SettingsAPI --> Email
   Email --> DB
-  Email --> ConfigModel
+  Email --> ConfigRepo
   GitHub --> Octokit[GitHub Contents API]
   GitHub --> YAML[js-yaml]
-  DB --> Mongo[(MongoDB)]
+  DB --> Database[(MongoDB / SQLite / MySQL)]
 ```
 
 该图描述静态 import 和关键调用关系；动态框架注册、部署平台路由和远端 YAML 真实结构未进行运行时验证。
@@ -90,7 +91,7 @@ sequenceDiagram
   participant V as 访客
   participant E as EmbedForm
   participant A as submissions API
-  participant DB as MongoDB
+  participant DB as selected database
   participant M as 管理员后台
   participant GH as GitHub YAML
   participant S as SMTP
@@ -115,7 +116,7 @@ sequenceDiagram
   A-->>M: 更新后的 Submission
 ```
 
-**已确认的顺序**：审核通过时先 GitHub 同步，再保存 MongoDB 状态，最后尝试结果邮件；见 `app/api/submissions/[id]/route.ts:46-100`。邮件失败被吞掉，不会回滚数据库或 GitHub。
+**已确认的顺序**：审核通过时先 GitHub 同步，再保存当前数据库状态，最后尝试结果邮件；见 `app/api/submissions/[id]/route.ts:25-80`。邮件失败被吞掉，不会回滚数据库或 GitHub。
 
 ## 页面与嵌入流程
 
@@ -136,7 +137,7 @@ flowchart TD
 
 ## 状态与持久化
 
-`Submission` 的状态枚举是 `pending`、`approved`、`rejected`，类型枚举是 `apply`、`update`（`lib/models/submission.ts:3-18,20-44`）。当前审核状态转换由 PATCH 路由控制：
+`Submission` 的公开状态枚举是 `pending`、`approved`、`rejected`，类型枚举是 `apply`、`update`；数据库内部还使用短期 `processingToken` 防止并发审核（`lib/database/types.ts`、`lib/models/submission.ts:3-47`）。当前审核状态转换由 PATCH 路由控制：
 
 ```mermaid
 stateDiagram-v2
@@ -148,17 +149,17 @@ stateDiagram-v2
 ```
 
 - 已处理提交不能再次 PATCH（`app/api/submissions/[id]/route.ts:31-43`）。
-- 拒绝原因没有 schema 字段，也没有保存到 MongoDB；它只在本次结果邮件中使用（`app/api/submissions/[id]/route.ts:83-98`、`lib/models/submission.ts:20-44`）。
+- 拒绝原因没有 schema 字段，也没有保存到数据库；它只在本次结果邮件中使用（`app/api/submissions/[id]/route.ts:70-87`、`lib/models/submission.ts:20-47`）。
 - 自动清理依据 `createdAt`，而不是状态变化时间 `updatedAt`（`app/api/submissions/route.ts:70-80`）。
 
 ## 重要架构风险与待确认
 
 ### 已确认/高可信风险
 
-1. **跨系统无事务或幂等**：GitHub 写入、MongoDB 状态保存、SMTP 通知是多个独立副作用；可能出现 GitHub 已写入但数据库仍 pending，或通知丢失（`app/api/submissions/[id]/route.ts:46-100`）。
+1. **跨系统无事务或幂等**：GitHub 写入、数据库状态保存、SMTP 通知是多个独立副作用；可能出现 GitHub 已写入但数据库仍 pending，或通知丢失（`app/api/submissions/[id]/route.ts:25-80`）。
 2. **认证 fallback**：`lib/auth.ts:4-6` 缺少 `JWT_SECRET` 时使用源码内固定 fallback；生产部署应强制配置强随机密钥。
 3. **状态筛选与统计只作用于当前页**：`SubmissionTable` 本地过滤 `submissions`（`components/admin/SubmissionTable.tsx:49-56`），服务端 GET 没有 status 查询参数。
-4. **公开查询没有分页**：`public=1` 会返回所有匹配记录，搜索值也直接用于 MongoDB 正则（`app/api/submissions/route.ts:43-61`）。
+4. **公开查询仍是较大上限而非真正分页**：`public=1` 当前最多读取 10000 条，搜索下沉到各 provider；大数据量仍需进一步限流和分页（`app/api/submissions/route.ts:39-67`）。
 5. **输入未统一做运行时 schema、长度、URL/邮箱和 HTML 转义校验**：影响提交数据、邮件模板和 YAML 写入。
 
 ### 待确认
@@ -168,3 +169,4 @@ stateDiagram-v2
 - 指定不存在分组时返回错误、未指定分组时使用/创建“网上邻居”是否符合所有部署者预期（`lib/github.ts:300-323`）。
 - 生产环境是否允许未登录访问 `github=1`、`classNames=1`、`screenshotField=1` 辅助查询；这些分支位于认证检查之前（`app/api/submissions/route.ts:29-41`）。
 - 管理后台友链编辑会直接提交整个 YAML 文件，仍需用测试仓库核验 SHA 冲突和格式变化。
+- Docker CLI 未安装在本次环境，三套 Compose 的真实启动、数据库健康检查和升级流程仍需服务器验收。

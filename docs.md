@@ -88,15 +88,21 @@ friendlink-verify/
 - **首页**: `app/page.tsx` — 嵌入指南页面，展示 iframe/script/HTML 三种嵌入方式的代码示例，供使用者复制。
 - **嵌入表单**: `app/embed/page.tsx` — 嵌入到第三方网站的友链提交表单（支持 iframe 和 script 两种嵌入方式），支持 `apply`（申请）和 `update`（更新）两种模式。
 - **管理后台**: `app/admin/dashboard-client.tsx` — 管理员的完整操作面板，包括提交列表查看/筛选、审核通过/拒绝（含拒绝原因）、分组选择、自动清理过期记录、暗黑模式切换、设置面板等。
-- **GitHub 同步服务**: `lib/github.ts` — 核心业务逻辑，审核通过后从 GitHub 仓库获取 YAML 文件，根据分组（`class_name`）追加或更新友链条目，然后提交 PR 或直接推送。
+- **GitHub 同步服务**: `lib/github.ts` — 核心业务逻辑，审核通过后从 GitHub 仓库获取 YAML 文件，根据分组（`class_name`）追加或更新友链条目，然后直接写回文件。
+- **数据库适配层**: `lib/database/` — 根据 `DATABASE_PROVIDER` 在 MongoDB/Mongoose、SQLite/Drizzle、MySQL/Drizzle 之间选择 Repository；已通过友链仍以 GitHub YAML 为唯一事实来源。
 - **邮件通知服务**: `lib/email.ts` — 通过 SMTP 发送两类邮件：新提交通知管理员、审核结果（通过/拒绝 + 原因）通知申请者，邮件模板支持从数据库动态加载和 Markdown 渲染。
 - **认证模块**: `lib/auth.ts` — 基于 jose 库的 JWT 认证，管理员登录后签发 24h 有效 token，通过 cookie 管理会话。
 
 ## 5. 启动与构建
 
 - **安装依赖**: `npm install`
-- **配置环境**: 复制 `env.example` 为 `.env.local`，填写 `MONGODB_URI`、`ADMIN_USERNAME`、`ADMIN_PASSWORD`、`JWT_SECRET` 等必填项
+- **配置环境**: 复制 `env.example` 为 `.env.local`，设置 `DATABASE_PROVIDER` 和对应的 `MONGODB_URI`/`SQLITE_PATH`/`MYSQL_URL`，再填写 `ADMIN_USERNAME`、`ADMIN_PASSWORD`、`JWT_SECRET`
 - **本地运行**: `npm run dev`
 - **构建打包**: `npm run build`
 - **生产启动**: `npm start`
-- **代码检查**: `npm run lint`
+- **代码检查**: `npm run lint`、`npm run typecheck`、`npm test`
+- **数据库 schema**: `npm run db:migrate`
+- **Mongo → SQL 迁移**: `npm run db:migrate-data -- --dry-run`，确认后加 `--apply`
+- **Docker**: `docker compose -f compose.sqlite.yaml up --build`（另有 MySQL/Mongo Compose）
+- **GitHub Actions**: `.github/workflows/docker-image.yml` 会在 PR 时检查并构建、在 `main` 或 `v*.*.*` tag 推送时构建并发布 GHCR 镜像，也支持手动运行
+- **GHCR 镜像**: Compose 可通过 `.env` 的 `IMAGE_NAME=ghcr.io/owner/repo:latest` 使用 Actions 发布的预构建镜像

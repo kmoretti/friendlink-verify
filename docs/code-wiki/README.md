@@ -5,12 +5,12 @@
 ## 项目速览
 
 - **类型**：Next.js App Router 全栈 Web 应用
-- **技术栈**：TypeScript / React / Next.js 15.5.19 / MongoDB + Mongoose / JWT Cookie / GitHub Contents API / SMTP
+- **技术栈**：TypeScript / React / Next.js 15.5.19 / Repository（MongoDB + Mongoose、SQLite/MySQL + Drizzle）/ JWT Cookie / GitHub Contents API / SMTP / Docker
 - **适用读者**：首次接手项目的开发者、部署维护者、需要排查审核链路的管理员
 - **主要入口**：`/`、`/embed`、`/embed.js`、`/admin`
-- **核心数据模型**：`Submission`、`Config`
+- **核心数据模型**：`Submission`、`Config`；数据库可选 MongoDB、SQLite、MySQL
 
-系统的主链路是：第三方站点提交友链信息 → MongoDB 保存为待审核 → 管理员在后台审核 → 通过时改写 GitHub 中的 Butterfly 风格 YAML → 可选地发送邮件通知。
+系统的主链路是：第三方站点提交友链信息 → 当前数据库 provider 保存为待审核 → 管理员在后台审核 → 通过时改写 GitHub 中的 Butterfly 风格 YAML → 可选地发送邮件通知。已通过友链不复制到数据库，GitHub YAML 仍是唯一事实来源。
 
 ## 推荐阅读顺序
 
@@ -45,7 +45,7 @@ npm install
 npm run dev
 ```
 
-运行数据库相关功能前，需要配置 `.env.local`；最小要求见[配置说明](./configuration.md)。生产模式命令为：
+运行数据库相关功能前，需要配置 `.env.local`；最小要求见[配置说明](./configuration.md)。可运行 `npm run typecheck`、`npm test` 和 `npm run db:migrate`。生产模式命令为：
 
 ```bash
 npm run build
@@ -60,7 +60,7 @@ npm start
 
 - 浏览器/第三方站点只通过公开提交接口写入 `Submission`。
 - 管理员 API 通过 `session` HttpOnly Cookie 做会话认证。
-- GitHub 和 SMTP 都是可选集成，但审核通过在当前实现中依赖 GitHub 配置。
+- GitHub 和 SMTP 都是可选集成，但审核通过在当前实现中依赖 GitHub 配置；数据库 provider 由 `DATABASE_PROVIDER` 选择。
 - 自动清理不是独立定时任务，而是在管理员加载列表时执行。
 
 ## 分析元数据
@@ -68,7 +68,8 @@ npm start
 | 项目 | 值 |
 |---|---|
 | 分析目标 | `E:/kmoretti-github/friendlink-verify` |
-| Git 提交 | `83931d2`（`main`，分析时工作树干净） |
+| Docker 入口 | `Dockerfile`、`compose.sqlite.yaml`、`compose.mysql.yaml`、`compose.mongodb.yaml` |
+| Git 基线 | `a3cb132`（`main`；本次 Docker/多数据库改造仍在工作树中） |
 | 分析时间 | 2026-08-04（GMT+8） |
 | 扫描范围 | `app/`、`components/`、`lib/`、根目录配置、README、`docs.md`、依赖锁文件、测试/CI/部署入口 |
 | 默认忽略 | `.git/`、`node_modules/`、`.next/`、生成缓存、二进制资源和环境变量值 |

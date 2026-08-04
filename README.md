@@ -3,7 +3,7 @@
 [![license](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Next.js](https://img.shields.io/badge/Next.js-15-black?logo=next.js)](https://nextjs.org)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5-blue?logo=typescript)](https://www.typescriptlang.org)
-[![Node](https://img.shields.io/badge/node-%3E%3D18-brightgreen?logo=node.js)](https://nodejs.org)
+[![Node](https://img.shields.io/badge/node-%3E%3D20-brightgreen?logo=node.js)](https://nodejs.org)
 [![MongoDB](https://img.shields.io/badge/MongoDB-ready-green?logo=mongodb)](https://www.mongodb.com)
 [![Vercel](https://img.shields.io/badge/deploy-Vercel-black?logo=vercel)](https://vercel.com)
 [![GitHub stars](https://img.shields.io/github/stars/shangskr/friendlink-verify?style=social)](https://github.com/shangskr/friendlink-verify)
@@ -11,6 +11,33 @@
 [![GitHub repo size](https://img.shields.io/github/repo-size/shangskr/friendlink-verify)](https://github.com/shangskr/friendlink-verify)
 
 在任何网站嵌入友链提交表单，接收申请。管理员审核后自动推送到 GitHub 仓库，支持邮件通知。
+
+> **数据边界：** 已通过友链始终以 GitHub 仓库中的 Butterfly YAML（通常是 `link.yml` 或 `links.yml`）为唯一事实来源。数据库只保存申请记录和后台配置，不保存已通过友链的副本。
+
+## 快速选择部署方式
+
+| 场景 | 推荐部署 | 数据库建议 |
+|------|----------|------------|
+| 不想维护服务器 | Vercel | MongoDB Atlas |
+| Vercel + 关系型数据库 | Vercel + 外部数据库 | 云 MySQL |
+| 单机、低流量、自托管 | Docker Compose | SQLite |
+| 正式自托管、后续可能扩容 | Docker Compose | MySQL 或 MongoDB |
+
+> Vercel 只运行 Next.js 应用，不运行本项目提供的 MongoDB/MySQL/SQLite 容器。Vercel 使用 SQLite 本地文件不适合作为生产存储；如果部署到 Vercel，请使用 MongoDB Atlas 或可从公网访问的 MySQL。
+
+## 目录
+
+- [功能特性](#功能特性)
+- [部署到 Vercel](#部署到-vercel)
+- [Docker 自托管部署](#docker-自托管部署)
+- [GitHub Actions 构建 Docker 镜像](#github-actions-构建-docker-镜像)
+- [数据库迁移](#数据库迁移和备份)
+- [本地开发](#本地开发)
+- [API 接口](#api-接口)
+- [嵌入方式](#嵌入方式)
+- [管理后台](#管理后台)
+- [link.yml 格式](#linkyml-格式)
+- [故障排查](#故障排查)
 
 ## 预览
 
@@ -31,45 +58,413 @@
 - **友链页面** — 提交时必须填写友链页面地址（用于确认互换友链），审核通过后自动写入 YAML `friendslink` 字段
 - **表情选择器** — 拒绝原因输入支持 OwO 表情（URL 可后台配置）
 - **自动清理** — 按状态分别设置保留天数，打开后台时自动清理过期记录（非定时触发）
-- **站点截图** — 提交时可上传站点截图，审核时方便预览；自动兼容 `siteshot` 和 `topimg` 两种字段名
+- **站点截图** — 提交时可填写站点截图 URL，审核时方便预览；自动兼容 `siteshot` 和 `topimg` 两种字段名
 - **暗黑模式** — 全站深色/浅色切换，支持定时自动切换
 
 ## 部署到 Vercel
 
-### 前置条件
+Vercel 只部署 Next.js 应用，数据库必须使用外部托管服务。推荐组合是 **Vercel + MongoDB Atlas**；也可以使用公网可访问的云 MySQL。不要在 Vercel 上使用本地 SQLite 文件作为生产数据库：Serverless 实例的本地文件系统不是持久共享存储。
 
-1. **MongoDB 数据库** — 推荐 [MongoDB Atlas](https://www.mongodb.com/atlas) 免费版
-2. **GitHub Token** (可选) — 审核通过后自动推送到仓库
-3. **SMTP 邮箱** (可选) — 发送邮件通知
+### 通用步骤
 
-### 步骤
+1. Fork / Clone 本项目到你的 GitHub 仓库。
+2. 如果审核通过后要自动修改友链 YAML，先准备 GitHub Token，见[获取 GitHub Token](#获取-github-token可选)。
+3. 访问 [vercel.com](https://vercel.com) → **Add New → Project**，导入项目仓库。
+4. 在 **Settings → Environment Variables** 中添加应用变量。
+5. 选择 **Production**、**Preview** 或 **Development** 环境后保存。
+6. 点击 **Deploy**；修改环境变量后需要重新部署才会应用到生产环境。
 
-1. Fork / Clone 本项目到你的 GitHub 仓库
-2. 访问 [vercel.com](https://vercel.com) → Add New → Project
-3. 选择本项目仓库，在 **Environment Variables** 中添加：
+### Vercel + MongoDB Atlas（推荐）
+
+1. 在 [MongoDB Atlas](https://www.mongodb.com/atlas) 创建 Cluster 和数据库用户。
+2. 配置 Network Access，允许 Vercel 访问；测试阶段可临时使用 `0.0.0.0/0`，生产环境请按你的安全策略限制来源。
+3. 复制连接字符串，例如：
+
+```text
+mongodb+srv://用户名:密码@cluster.xxxxx.mongodb.net/friendlink
+```
+
+4. 在 Vercel 中设置：
+
+```env
+DATABASE_PROVIDER=mongodb
+MONGODB_URI=mongodb+srv://用户名:密码@cluster.xxxxx.mongodb.net/friendlink
+```
+
+MongoDB 不需要执行 Drizzle SQL migration，应用启动时会通过 Mongoose 连接数据库。
+
+### Vercel + 外部 MySQL
+
+Vercel 不能访问 Docker Compose 内部的 `mysql` 主机名，必须使用公网可访问的 MySQL 服务，并确保数据库允许 Vercel 连接。设置：
+
+```env
+DATABASE_PROVIDER=mysql
+MYSQL_URL=mysql://用户名:密码@数据库地址:3306/friendlink
+```
+
+在首次部署前，先在本地或 CI 初始化 schema：
+
+```bash
+DATABASE_PROVIDER=mysql \
+MYSQL_URL='mysql://用户名:密码@数据库地址:3306/friendlink' \
+npm run db:migrate
+```
+
+PowerShell：
+
+```powershell
+$env:DATABASE_PROVIDER = "mysql"
+$env:MYSQL_URL = "mysql://用户名:密码@数据库地址:3306/friendlink"
+npm run db:migrate
+```
+
+> 数据库连接串中的用户名或密码如果包含 `@`、`:`、`/`、`#` 等字符，必须先进行 URL 编码。
+
+### Vercel 必填与可选环境变量
+
+以下变量在所有 provider 下都建议配置：
 
 | 变量名 | 必填 | 说明 |
 |--------|------|------|
-| `MONGODB_URI` | 是 | MongoDB 连接字符串 |
+| `DATABASE_PROVIDER` | 是 | `mongodb` 或 `mysql`；Vercel 不建议使用 `sqlite` |
 | `ADMIN_USERNAME` | 是 | 管理员登录用户名 |
-| `ADMIN_PASSWORD` | 是 | 管理员登录密码 |
-| `JWT_SECRET` | 是 | JWT 加密密钥（随机字符串） |
-| `NEXT_PUBLIC_APP_URL` | 推荐 | 部署后的域名，如 `https://your-app.vercel.app`（不设则邮件链接和嵌入脚本可能异常） |
-| `GITHUB_TOKEN` | 否 | GitHub Personal Access Token |
-| `GITHUB_REPO` | 否 | 仓库名 `owner/repo` |
-| `GITHUB_FILE_PATH` | 否 | 仓库相对路径，如 `link.yml` 或 `source/_data/link.yml`，不要以 `/` 开头 |
+| `ADMIN_PASSWORD` | 是 | 管理员登录密码，必须使用强密码 |
+| `JWT_SECRET` | 是 | 随机长字符串，用于签发登录 Cookie |
+| `NEXT_PUBLIC_APP_URL` | 推荐 | 部署后的完整地址，例如 `https://your-app.vercel.app` |
+
+数据库变量按 provider 二选一：
+
+| Provider | 变量 |
+|----------|------|
+| `mongodb` | `MONGODB_URI` |
+| `mysql` | `MYSQL_URL` |
+
+GitHub 自动同步变量：
+
+| 变量名 | 必填 | 说明 |
+|--------|------|------|
+| `GITHUB_TOKEN` | 否 | 审核通过后写入 GitHub YAML 所需的 Token |
+| `GITHUB_REPO` | 否 | 仓库名，格式为 `owner/repo` |
+| `GITHUB_FILE_PATH` | 否 | 仓库相对路径，例如 `link.yml` 或 `source/_data/links.yml` |
+
+SMTP 通知变量：
+
+| 变量名 | 必填 | 说明 |
+|--------|------|------|
 | `EMAIL_USER` | 否 | SMTP 发件邮箱 |
-| `EMAIL_PASS` | 否 | SMTP 授权码 |
-| `EMAIL_NAME` | 否 | 发件人显示名称（默认 `EMAIL_USER`） |
-| `EMAIL_RECIPIENT` | 否 | 管理员接收通知的邮箱 |
-| `SMTP_SERVER` | 否 | SMTP 服务器，如 `smtp.163.com` |
+| `EMAIL_PASS` | 否 | SMTP 授权码或密码 |
+| `EMAIL_NAME` | 否 | 发件人显示名称，默认使用 `EMAIL_USER` |
+| `EMAIL_RECIPIENT` | 否 | 管理员通知接收邮箱 |
+| `SMTP_SERVER` | 否 | SMTP 主机，例如 `smtp.163.com` |
 | `SMTP_PORT` | 否 | SMTP 端口，默认 `465` |
-| `NEXT_PUBLIC_DARK_MODE_START` | 否 | 定时进入夜间，如 `18:00` |
-| `NEXT_PUBLIC_DARK_MODE_END` | 否 | 定时退出夜间，如 `06:00` |
 
-4. 点击 **Deploy**，部署完成后即可使用
+主题模式变量：
 
-### 获取 GitHub Token（可选）
+| 变量名 | 必填 | 说明 |
+|--------|------|------|
+| `NEXT_PUBLIC_DARK_MODE_START` | 否 | 自动进入夜间模式的时间，例如 `18:00` |
+| `NEXT_PUBLIC_DARK_MODE_END` | 否 | 自动退出夜间模式的时间，例如 `06:00` |
+
+部署完成后访问：
+
+```text
+https://你的域名.vercel.app/
+https://你的域名.vercel.app/admin/login
+https://你的域名.vercel.app/api/health
+https://你的域名.vercel.app/api/health?ready=1
+```
+
+## GitHub Actions 构建 Docker 镜像
+
+工作流文件：
+
+```text
+.github/workflows/docker-image.yml
+```
+
+工作流会先执行质量检查，再构建 Docker 镜像：
+
+```text
+npm ci
+npm run typecheck
+npm run lint
+npm test
+docker buildx build
+```
+
+触发规则：
+
+| 事件 | 行为 |
+|------|------|
+| Pull Request 到 `main` | 执行质量检查并构建镜像，不推送 |
+| 推送到 `main` | 执行检查、构建并推送 `main`、`latest` 和 SHA 标签到 GHCR |
+| 推送 `v1.2.3` 形式的 tag | 执行检查、构建并推送版本标签和 SHA 标签到 GHCR |
+| 手动运行 | 可选择是否推送镜像，默认推送 |
+
+镜像地址格式：
+
+```text
+ghcr.io/<GitHub 用户名或组织>/<仓库名>
+```
+
+例如仓库是 `shangskr/friendlink-verify`，镜像地址就是：
+
+```text
+ghcr.io/shangskr/friendlink-verify
+```
+
+### 首次使用 GitHub Container Registry
+
+工作流使用 GitHub Actions 内置的 `${{ secrets.GITHUB_TOKEN }}` 登录 GHCR，不需要新增密码 Secret。仓库的 Actions 权限需要允许写入 Packages：
+
+1. 打开仓库 **Settings → Actions → General**。
+2. 找到 **Workflow permissions**。
+3. 选择 **Read and write permissions**，或确认工作流权限没有被组织策略禁止。
+4. 推送 `main` 或 `v1.2.3` tag，观察 **Actions** 页面运行结果。
+
+新发布的 GHCR package 默认可能是私有的。服务器拉取私有镜像时，需要使用具有 `read:packages` 权限的 GitHub Token 登录：
+
+```bash
+echo "$CR_PAT" | docker login ghcr.io -u YOUR_GITHUB_USERNAME --password-stdin
+docker pull ghcr.io/YOUR_GITHUB_USERNAME/friendlink-verify:latest
+```
+
+> 不要把 GitHub Token 写入 README、Compose 文件、镜像或公开日志。公开 package 可以不登录直接拉取，但仍建议使用最小权限和安全的服务器配置。
+
+### Docker Compose 使用 GHCR 镜像
+
+三套 Compose 默认仍然使用本地镜像名 `friendlink-verify:local` 并从当前目录构建。要使用 GitHub Actions 发布的镜像，在服务器 `.env` 中增加：
+
+```env
+IMAGE_NAME=ghcr.io/YOUR_GITHUB_USERNAME/friendlink-verify:latest
+```
+
+然后执行：
+
+```bash
+docker compose -f compose.mysql.yaml pull
+docker compose -f compose.mysql.yaml up -d
+```
+
+把 `compose.mysql.yaml` 替换为 `compose.sqlite.yaml` 或 `compose.mongodb.yaml` 即可。使用 GHCR 预构建镜像时不需要 `--build`；如果要在服务器本地重新构建，则删除 `IMAGE_NAME` 或执行：
+
+```bash
+docker compose -f compose.mysql.yaml up --build -d
+```
+
+## Docker 自托管部署
+
+项目提供同一个 Next.js standalone 镜像和三套独立 Compose 文件。运行时通过 `DATABASE_PROVIDER` 选择数据库：`mongodb`（默认）、`sqlite` 或 `mysql`。每套 Compose 都包含 `app` 和一次性的 `migrate` service；MySQL/MongoDB Compose 还包含对应数据库容器。
+
+### 1. 准备服务器和项目
+
+服务器需要安装 Docker Engine 与 Compose Plugin：
+
+```bash
+docker --version
+docker compose version
+```
+
+获取项目并创建私有环境变量文件：
+
+```bash
+git clone https://github.com/你的用户名/你的仓库.git
+cd friendlink-verify
+cp env.example .env
+```
+
+Windows PowerShell：
+
+```powershell
+git clone https://github.com/你的用户名/你的仓库.git
+Set-Location friendlink-verify
+Copy-Item env.example .env
+```
+
+编辑 `.env`，至少设置：
+
+```env
+ADMIN_USERNAME=admin
+ADMIN_PASSWORD=请替换为强密码
+JWT_SECRET=请替换为随机长字符串
+NEXT_PUBLIC_APP_URL=http://你的服务器地址:3000
+```
+
+如果审核通过后要自动提交 GitHub YAML，还需要设置 `GITHUB_TOKEN`、`GITHUB_REPO` 和 `GITHUB_FILE_PATH`。如果要发送邮件，再设置 SMTP 相关变量。
+
+> `.env` 只用于服务器运行时，不要提交 Git、复制进镜像或公开到前端。数据库密码、GitHub Token、SMTP 授权码都属于敏感信息。
+
+### 2. Docker + SQLite（单机单实例）
+
+SQLite 适合个人站点、低流量和单台服务器。它不支持多个 app 副本、多个主机或共享文件系统同时写入。
+
+`.env` 至少包含：
+
+```env
+DATABASE_PROVIDER=sqlite
+SQLITE_PATH=/data/friendlink.db
+```
+
+启动：
+
+```bash
+docker compose -f compose.sqlite.yaml config
+docker compose -f compose.sqlite.yaml up --build -d
+```
+
+数据库文件保存在 named volume `friendlink_verify_sqlite_data` 的 `/data/friendlink.db`。不要使用 `down -v`，否则会删除数据库卷。
+
+### 3. Docker + MySQL 8.4
+
+MySQL 适合正式自托管和后续扩容。`.env` 设置：
+
+```env
+DATABASE_PROVIDER=mysql
+MYSQL_ROOT_PASSWORD=请替换为root强密码
+MYSQL_DATABASE=friendlink
+MYSQL_USER=friendlink
+MYSQL_PASSWORD=请替换为应用数据库密码
+```
+
+也可以显式设置完整连接串：
+
+```env
+MYSQL_URL=mysql://friendlink:密码@mysql:3306/friendlink
+```
+
+启动：
+
+```bash
+docker compose -f compose.mysql.yaml config
+docker compose -f compose.mysql.yaml up --build -d
+```
+
+Compose 会按以下顺序执行：
+
+```text
+MySQL 健康检查通过 → migrate 执行 npm run db:migrate → app 启动
+```
+
+数据保存在 named volume `friendlink_verify_mysql_data`。Compose 网络中的数据库主机名是 `mysql`，不要在 `MYSQL_URL` 中写 `localhost`。
+
+### 4. Docker + MongoDB 8
+
+MongoDB 适合继续使用原有 MongoDB 数据或从 Vercel/MongoDB Atlas 迁移到自托管服务器。`.env` 设置：
+
+```env
+DATABASE_PROVIDER=mongodb
+MONGO_INITDB_ROOT_USERNAME=admin
+MONGO_INITDB_ROOT_PASSWORD=请替换为MongoDB强密码
+MONGO_DATABASE=friendlink
+```
+
+也可以显式设置完整 URI：
+
+```env
+MONGODB_URI=mongodb://admin:密码@mongo:27017/friendlink?authSource=admin
+```
+
+启动：
+
+```bash
+docker compose -f compose.mongodb.yaml config
+docker compose -f compose.mongodb.yaml up --build -d
+```
+
+Compose 网络中的数据库主机名是 `mongo`，不要把容器内连接地址写成 `localhost`。数据保存在 named volume `friendlink_verify_mongo_data`。
+
+### 5. 访问、日志和升级
+
+三套 Compose 默认都将容器 `3000` 端口映射到服务器 `3000` 端口：
+
+```text
+http://你的服务器地址:3000
+```
+
+如果服务器端口 `3000` 已占用，可以修改对应 Compose 文件：
+
+```yaml
+ports:
+  - "3001:3000"
+```
+
+然后使用 `http://服务器地址:3001` 访问。
+
+查看服务状态：
+
+```bash
+docker compose -f compose.<provider>.yaml ps
+```
+
+查看日志：
+
+```bash
+docker compose -f compose.<provider>.yaml logs -f app
+docker compose -f compose.<provider>.yaml logs migrate
+```
+
+健康检查：
+
+```bash
+curl http://127.0.0.1:3000/api/health
+curl "http://127.0.0.1:3000/api/health?ready=1"
+```
+
+两个接口成功时都返回：
+
+```json
+{"status":"ok"}
+```
+
+更新代码并重新构建：
+
+```bash
+git pull
+docker compose -f compose.<provider>.yaml up --build -d
+```
+
+停止应用但保留数据库：
+
+```bash
+docker compose -f compose.<provider>.yaml down
+```
+
+启停或升级时不要使用 `down -v`，除非已经确认要删除数据库卷。
+
+## 数据库迁移和备份
+
+### Schema migration 和 Mongo 数据迁移
+
+SQLite/MySQL 使用版本化 Drizzle migration。Compose 会通过一次性的 `migrate` service 自动执行；MongoDB provider 会安全跳过 SQL migration。
+
+手动执行 schema migration：
+
+```bash
+npm run db:migrate
+```
+
+从 MongoDB 迁移到 SQLite/MySQL 时，源固定为 `MONGODB_URI`，目标由 `DATABASE_PROVIDER` 和对应连接变量决定。迁移范围只有 `Submission` 和 `Config`，不会迁移 GitHub `links.yml`。
+
+先预览：
+
+```bash
+DATABASE_PROVIDER=mysql \
+MYSQL_URL='mysql://user:password@host:3306/friendlink' \
+MONGODB_URI='mongodb://user:password@source/friendlink' \
+npm run db:migrate-data -- --dry-run
+```
+
+确认结果后执行：
+
+```bash
+npm run db:migrate-data -- --apply
+```
+
+`--apply` 使用幂等 upsert，不删除目标库的额外数据。生产迁移前请先备份，具体命令见 [`docs/database-migration.md`](docs/database-migration.md)。
+
+> 迁移脚本默认不会把 GitHub 友链 YAML 写入数据库；迁移后仍需保持 GitHub 环境变量正确，否则审核通过和友链管理无法同步 YAML。
+
+## 获取 GitHub Token（可选）
 
 用于审核通过后自动推送友链到仓库。只需勾选一个权限：
 
@@ -101,27 +496,57 @@ npm install
 copy env.example .env.local
 ```
 
-打开 `.env.local`，填写以下必填项：
+打开 `.env.local`，选择一个数据库 provider 并填写管理员配置：
 
 | 变量 | 填写方法 |
 |------|----------|
-| `MONGODB_URI` | 注册 [MongoDB Atlas](https://www.mongodb.com/atlas) → 创建免费集群 → Connect → Drivers → 复制连接字符串，把 `<password>` 换成数据库用户密码 |
+| `DATABASE_PROVIDER` | `mongodb`、`sqlite` 或 `mysql`，缺省为 `mongodb` |
+| `MONGODB_URI` | provider 为 `mongodb` 时填写 MongoDB 连接字符串 |
+| `SQLITE_PATH` | provider 为 `sqlite` 时填写数据库文件路径，缺省为 `./data/friendlink.db` |
+| `MYSQL_URL` | provider 为 `mysql` 时填写 MySQL 连接字符串 |
 | `ADMIN_USERNAME` | 随便设，如 `admin` |
-| `ADMIN_PASSWORD` | 随便设一个密码 |
-| `JWT_SECRET` | 随便一个随机字符串，如 `abc123xyz` |
+| `ADMIN_PASSWORD` | 设置强密码 |
+| `JWT_SECRET` | 设置强随机字符串 |
 | `NEXT_PUBLIC_APP_URL` | 本地开发填 `http://localhost:3000` |
 
 > `GITHUB_*`、`EMAIL_*`、`SMTP_*`、`NEXT_PUBLIC_DARK_MODE_*` 都是可选的，不填不影响本地运行。
 
-### 3. 启动
+### 3. 初始化数据库
+
+如果使用 SQLite 或 MySQL，先执行 schema migration；MongoDB 不需要 SQL migration：
+
+```bash
+npm run db:migrate
+```
+
+SQLite 本地开发示例：
+
+```env
+DATABASE_PROVIDER=sqlite
+SQLITE_PATH=./data/friendlink.db
+```
+
+MySQL 本地开发示例：
+
+```env
+DATABASE_PROVIDER=mysql
+MYSQL_URL=mysql://user:password@127.0.0.1:3306/friendlink
+```
+
+### 4. 启动
 
 ```bash
 npm run dev
 ```
 
-浏览器打开 `http://localhost:3000` 即可。
+浏览器打开 `http://localhost:3000` 即可。生产模式可以使用：
 
-> **注意:** Windows 上如果 `npm run dev` 报错，请用 `npm run build && npm run start`（生产模式）。
+```bash
+npm run build
+npm start
+```
+
+> Node.js 建议使用 20 LTS 或更高版本。Windows 上如果 `npm run dev` 报错，可以使用上面的生产模式命令排查 standalone 构建问题。
 
 ## API 接口
 
@@ -129,7 +554,7 @@ npm run dev
 
 ### 提交友链
 
-```
+```text
 POST /api/submissions
 Content-Type: application/json
 
@@ -162,11 +587,11 @@ Content-Type: application/json
 | `type` | 否 | `apply` 申请 / `update` 更新，默认 `apply` |
 | `originalUrl` | 否 | 原站点地址（type=update 时必填） |
 
-成功返回 `201`，失败返回 `400` / `422`。
+成功返回 `201`；请求字段无效返回 `400`，服务或数据库异常返回 `500`。
 
 ### 审核提交
 
-```
+```text
 PATCH /api/submissions/:id
 Content-Type: application/json
 
@@ -189,7 +614,7 @@ Content-Type: application/json
 
 ### 删除提交
 
-```
+```text
 DELETE /api/submissions/:id
 ```
 
@@ -197,7 +622,7 @@ DELETE /api/submissions/:id
 
 ### 获取提交列表
 
-```
+```text
 GET /api/submissions?page=1&limit=10
 ```
 
@@ -206,11 +631,11 @@ GET /api/submissions?page=1&limit=10
 | `page` | 页码，默认 `1` |
 | `limit` | 每页条数，默认 `10`，最大 `100` |
 
-返回 `{ submissions, total, page, totalPages }`，需要管理员登录。
+返回 `{ submissions, total, page, totalPages }`，需要管理员登录。`limit` 默认 `10`，最大 `100`；非法的 `page`/`limit` 会回退到默认值。
 
 ### 公开查询提交列表（无需登录）
 
-```
+```text
 GET /api/submissions?public=1
 ```
 
@@ -220,13 +645,64 @@ GET /api/submissions?public=1
 | `status` | 筛选状态，可选 `pending` / `approved` / `rejected` |
 | `search` | 按站点名称模糊搜索（不区分大小写） |
 
-返回 `{ submissions: [...] }`，每项仅含 `name`、`description`、`friendslink`、`status`、`type`、`feeds` 六个字段。响应带有 `Access-Control-Allow-Origin: *` CORS 头，支持跨域调用。
+返回 `{ submissions: [...] }`，每项仅含 `name`、`description`、`friendslink`、`status`、`type`、`feeds` 六个字段，最多返回 10,000 条匹配记录。响应带有 `Access-Control-Allow-Origin: *` CORS 头，支持跨域调用。
 
 ### 后台设置
 
+```text
+GET  /api/admin/settings    # 获取设置，需要管理员登录
+PUT  /api/admin/settings    # 更新设置，需要管理员登录
 ```
-GET  /api/admin/settings    # 获取设置
-PUT  /api/admin/settings    # 更新设置（需要管理员登录）
+
+### 已通过友链管理 API
+
+这些接口均需要管理员登录 Cookie。接口读取和写入 GitHub YAML，不读写数据库中的 `Submission` 列表。
+
+```text
+GET    /api/links
+POST   /api/links/groups
+PATCH  /api/links/groups/:groupName
+DELETE /api/links/groups/:groupName
+PATCH  /api/links/entries
+```
+
+`groupName` 放在 URL 路径中时必须进行 URL 编码，例如：
+
+```javascript
+const groupName = encodeURIComponent('网上邻居')
+fetch(`/api/links/groups/${groupName}`, {
+  method: 'PATCH',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ name: '网上邻居', desc: '我的网络朋友们~' }),
+})
+```
+
+友链管理约束：
+
+- 默认分组名称是 `网上邻居`，描述是 `我的网络朋友们~`。
+- 分组不存在时，审核通过写入会自动创建默认分组。
+- 只能删除空分组；非空分组删除会返回 `分组中仍有友链，请先移动友链后再删除`。
+- 不提供删除单条已通过友链的接口。
+- `tags` 可以传逗号分隔字符串或字符串数组；保存时会 trim、去重，清空后删除 YAML 中的 `tags` 字段。
+- 保留 YAML 中原有字段和未建模字段，不写入 `blog` 或 `color`。
+
+### 健康检查
+
+```text
+GET /api/health
+GET /api/health?ready=1
+```
+
+`/api/health` 只检查应用进程；带 `ready=1` 时会检查当前数据库连接。成功返回：
+
+```json
+{"status":"ok"}
+```
+
+数据库不可用时 readiness 返回 HTTP `503`，响应为：
+
+```json
+{"status":"unavailable"}
 ```
 
 ## 嵌入方式
@@ -245,13 +721,13 @@ PUT  /api/admin/settings    # 更新设置（需要管理员登录）
 
 ```html
 <!-- 申请友链 -->
-<script src="https://你的域名.vercel.app/embed.js"></script>
+<script src="https://你的域名.vercel.app/embed-script"></script>
 
 <!-- 更新友链 -->
-<script src="https://你的域名.vercel.app/embed.js" data-mode="update"></script>
+<script src="https://你的域名.vercel.app/embed-script" data-mode="update"></script>
 ```
 
-Script 方式会在 `<script>` 标签位置自动插入一个 `div` 并加载表单 iframe。
+Script 方式会在 `<script>` 标签所在位置自动插入表单 iframe。
 
 ### 方式三：自包含 HTML（通用）
 
@@ -1327,9 +1803,98 @@ render();
 >
 > **注意：** 确保 `link` 字段末尾不要有反斜杠 `/`，否则更新友链时无法匹配原数据。系统写入时会自动去除尾部斜杠，但 YAML 中已有的旧数据需要手动清理。
 
+## 故障排查
+
+### 1. `/api/health` 正常，但 `/api/health?ready=1` 返回 503
+
+这表示应用进程已启动，但数据库不可用。先查看 app 和数据库日志：
+
+```bash
+docker compose -f compose.<provider>.yaml logs --tail=200 app
+docker compose -f compose.<provider>.yaml logs --tail=200 migrate
+```
+
+重点检查：
+
+- `DATABASE_PROVIDER` 是否拼写为 `mongodb`、`sqlite` 或 `mysql`。
+- MongoDB 是否使用了正确的 `MONGODB_URI`，Docker 内部主机名应为 `mongo`。
+- MySQL 是否已经通过 healthcheck，Docker 内部主机名应为 `mysql`。
+- SQLite 是否挂载了 `/data`，并且 `SQLITE_PATH` 为 `/data/friendlink.db`。
+- 修改 `.env` 后是否重新创建/启动了容器。
+
+### 2. `migrate` service 失败
+
+查看迁移日志：
+
+```bash
+docker compose -f compose.<provider>.yaml logs migrate
+```
+
+SQLite/MySQL 需要执行 Drizzle migration；MongoDB 不使用 SQL migration。不要让多个应用副本同时执行手动 migration。
+
+### 3. 容器内连接数据库失败
+
+Docker Compose 使用服务名通信：
+
+```text
+MySQL:    mysql://user:password@mysql:3306/friendlink
+MongoDB:  mongodb://user:password@mongo:27017/friendlink?authSource=admin
+```
+
+容器内不要使用 `localhost` 作为数据库主机名。`localhost` 只表示当前容器。
+
+### 4. Vercel 上使用 SQLite 后数据丢失
+
+这是预期限制：Vercel Serverless 实例的本地文件系统不是持久共享数据库。请切换到 MongoDB Atlas 或外部 MySQL。当前项目的 SQLite 适用于 Docker 单机单实例，不是 Vercel 生产方案。
+
+### 5. 审核通过后 GitHub 同步失败
+
+检查以下变量：
+
+```env
+GITHUB_TOKEN=...
+GITHUB_REPO=owner/repo
+GITHUB_FILE_PATH=source/_data/links.yml
+```
+
+同时确认：
+
+- Token 有目标仓库 Contents 的写权限。
+- `GITHUB_REPO` 使用 `owner/repo` 格式。
+- `GITHUB_FILE_PATH` 是仓库相对路径，不要以 `/` 开头。
+- GitHub YAML 当前格式是 Butterfly 友链格式。
+
+### 6. 嵌入表单空白或无法提交
+
+确认嵌入地址使用部署后的完整域名，并且 `NEXT_PUBLIC_APP_URL` 正确。例如：
+
+```html
+<script src="https://你的域名.example/embed-script"></script>
+```
+
+不要使用旧的 `/embed.js` 路径；当前脚本接口是 `/embed-script`。如果使用自包含 HTML，请确认 POST 地址为：
+
+```text
+https://你的域名.example/api/submissions
+```
+
+## 备份建议
+
+生产迁移或升级前先备份，并验证备份可以恢复。详细命令见 [`docs/database-migration.md`](docs/database-migration.md)。
+
+```bash
+# MongoDB
+mongodump --uri="$MONGODB_URI" --out=./backup/mongodb-$(date +%Y%m%d-%H%M%S)
+
+# MySQL
+mysqldump --single-transaction --routines --triggers "$MYSQL_URL" > ./backup/friendlink-$(date +%Y%m%d-%H%M%S).sql
+```
+
+SQLite 备份前请停止 app 或先执行 WAL checkpoint，并同时考虑 `.db-wal` 和 `.db-shm` 文件。不要使用 `docker compose down -v` 代替备份。
+
 ## 项目结构
 
-```
+```text
 ├── app/
 │   ├── page.tsx              # 首页
 │   ├── embed/page.tsx        # 嵌入表单
@@ -1339,14 +1904,26 @@ render();
 │       ├── auth/             # 登录/登出/鉴权
 │       ├── submissions/      # 提交/审核/清理
 │       ├── links/            # 已通过友链分组和字段管理
+│       ├── health/           # 存活/readiness 健康检查
 │       └── admin/settings/   # 后台设置
 ├── components/
 │   └── admin/                # 后台界面组件
 ├── lib/
-│   ├── db.ts                 # MongoDB 连接
+│   ├── database/             # MongoDB/SQLite/MySQL Repository 适配层
+│   ├── db.ts                 # MongoDB 连接兼容层
 │   ├── auth.ts               # JWT 鉴权
 │   ├── github.ts             # GitHub API、YAML 和友链分组管理
 │   ├── email.ts              # SMTP 邮件
-│   └── models/               # 数据模型
+│   └── models/               # MongoDB 兼容模型
+├── drizzle/                  # SQLite/MySQL 版本化 migration
+├── scripts/                  # 数据库迁移命令
+├── Dockerfile                # Next.js standalone 镜像
+├── compose.sqlite.yaml       # Docker + SQLite
+├── compose.mysql.yaml        # Docker + MySQL
+├── compose.mongodb.yaml      # Docker + MongoDB
+├── .github/workflows/        # GitHub Actions
+│   └── docker-image.yml      # 构建并发布 Docker 镜像
+├── drizzle.config.ts         # SQLite Drizzle 配置
+├── drizzle.mysql.config.ts   # MySQL Drizzle 配置
 └── env.example               # 环境变量模板
 ```

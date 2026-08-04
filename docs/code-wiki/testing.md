@@ -4,30 +4,30 @@
 
 ### 已确认事实
 
-- `package.json` 只有 `dev`、`build`、`start`、`lint` 四类脚本，没有 `test`、`typecheck`、`coverage` 或 E2E 脚本（`package.json:5-10`）。
-- 扫描 Git 跟踪文件时未发现 `*.test.*`、`*.spec.*`、专门测试目录或 Jest/Vitest/Playwright/Cypress 配置。
-- 未发现 `.github/workflows`、Docker、Compose 或其他 CI/deployment manifest；README 的 Vercel 目标主要依赖平台默认 Next.js 识别（`README.md:35-68`）。
-- `tsconfig.json` 开启 `strict`、`noEmit` 和 Next 插件（`tsconfig.json:1-34`），但仓库没有单独的 typecheck 命令。
-- 分析时 git 工作树基线为 `main...origin/main`，HEAD 为 `83931d2`；本 Wiki 的文档新增不应被误认为业务测试改动。
+- `package.json` 现在包含 `dev`、`build`、`start`、`lint`、`typecheck`、`test`、Drizzle migration 和 Mongo→SQL migration 脚本（`package.json:5-16`）。
+- 已新增 Vitest 配置和数据库测试；当前没有浏览器 E2E 测试。
+- 已新增 Dockerfile、`.dockerignore`、三套 Compose；仍未发现 CI workflow。Vercel 继续依赖平台默认 Next.js 识别；Docker CLI 不在当前环境。
+- `tsconfig.json` 开启 `strict`、`noEmit` 和 Next 插件（`tsconfig.json:1-34`），`npm run typecheck` 执行 `tsc --noEmit`。
+- 本次改造的验证基线为 `main...origin/main`；Docker CLI 不在当前环境中，因此 Docker build/Compose 启动仍需在安装 Docker 的服务器验收。
 
 ### 已有验证
 
-只读分析子会话报告曾执行 `npm run lint`，结果无 ESLint warning/error，但有 Next.js 关于 `next lint` 弃用的提示。本次没有重复执行 `npm run lint`、`npm run build` 或启动应用；不要将该结果表述为功能测试通过。
+本次已执行 `npm run lint`、`npm run typecheck`、`npm test` 和 `npm run build`；均通过。Lint 仍有 Next.js 关于 `next lint` 弃用的提示。Docker CLI 不可用，未执行镜像构建或 Compose 启动；未连接真实 MongoDB/MySQL/GitHub/SMTP。
 
 ## 现有质量入口
 
 | 命令 | 实际脚本 | 能证明什么 | 不能证明什么 |
 |---|---|---|---|
-| `npm run lint` | `next lint` | ESLint 规则通过（按既有只读验证报告） | 不证明 API、数据库、GitHub、SMTP 或 UI 流程正确 |
-| `npm run build` | `next build` | 未在本次运行 | 未验证构建成功；可能产生 `.next` 派生文件 |
-| `npm start` | `next start` | 未在本次运行 | 未验证生产运行 |
+| `npm run lint` | `next lint` | ESLint 规则通过 | 不证明 API、数据库、GitHub、SMTP 或 UI 流程正确 |
+| `npm run build` | `next build` | Next standalone 构建通过 | 未验证真实生产环境和外部服务 |
+| `npm start` | `node .next/standalone/server.js` | 隔离 SQLite 下 production server、health/readiness 已验证 | 未验证真实生产网络/数据库和 Docker 容器 |
 
 ## 未覆盖的核心场景
 
 ### 后端与数据
 
-1. `MONGODB_URI` 缺失、连接失败和连接缓存。
-2. POST 字段校验、申请/更新类型、URL 标准化和 CORS。
+1. MySQL/Mongo 真实连接、provider 变量缺失、连接缓存和数据库网络。
+2. Repository 合约：SQLite 已验证 CRUD/搜索/状态更新/删除/upsert；MySQL/Mongo 仍需隔离服务。
 3. 管理员 Cookie、JWT 过期、错误凭据和未授权响应。
 4. 分页边界、公开查询、搜索特殊字符和大结果集。
 5. 自动清理的状态/日期语义。
@@ -74,10 +74,10 @@
 |---|---|---|
 | 高 | JWT fallback secret、管理员 role 未运行时校验 | `lib/auth.ts:4-6,16-23` |
 | 高 | HTML 模板/用户输入未统一转义 | `lib/email.ts:152-239` |
-| 高 | GitHub/DB/邮件无事务和幂等 | `app/api/submissions/[id]/route.ts:46-100` |
-| 中 | 公开查询无分页，搜索正则未转义 | `app/api/submissions/route.ts:43-61` |
+| 高 | GitHub/数据库/邮件无事务和幂等 | `app/api/submissions/[id]/route.ts:25-80` |
+| 中 | 公开查询仍使用较大固定上限，SQL 搜索契约还需跨 provider 对齐 | `app/api/submissions/route.ts:39-67`；`lib/database/*/repositories.ts` |
 | 中 | 状态筛选/统计只覆盖当前页 | `components/admin/SubmissionTable.tsx:49-56`；`app/admin/dashboard-client.tsx:318-323` |
-| 中 | 远程 YAML 只做基本运行时结构校验，字段语义仍依赖真实仓库 | `lib/github.ts:167-210` |
+| 中 | 远程 YAML 只做基本运行时结构校验，字段语义仍依赖真实仓库 | `lib/github.ts:160-196` |
 
 ## 人工核验边界
 

@@ -23,11 +23,16 @@ async function dbConnect(): Promise<typeof mongoose> {
   }
 
   if (cached.conn) {
-    return cached.conn
+    if (cached.conn.connection.readyState === 1) return cached.conn
+    cached.conn = null
+    cached.promise = null
   }
 
   if (!cached.promise) {
-    cached.promise = mongoose.connect(MONGODB_URI)
+    cached.promise = mongoose.connect(MONGODB_URI).catch((error) => {
+      cached.promise = null
+      throw error
+    })
   }
 
   cached.conn = await cached.promise

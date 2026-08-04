@@ -7,8 +7,11 @@
 | Node.js | README `>=18`；Next 锁文件有更具体 engines | 执行 Next.js | 运行时 | 建议使用满足 Next 15.5.19 engines 的 Node 18.18+ 或 20+ |
 | Next.js | `package.json:14`，`^15.5.19` | 页面、App Router、Route Handler、构建 | 运行时/构建 | `next lint` 已有弃用提示，升级时需迁移 lint 命令 |
 | React / React DOM | `18.3.1` | 客户端组件与渲染 | 运行时/构建 | 与 Next 版本耦合 |
-| TypeScript | `5.9.3` | 类型检查/编译 | 开发/构建 | `tsconfig` 开启 strict，但没有单独 typecheck 脚本 |
-| Mongoose | `8.24.0` | MongoDB ODM、模型和查询 | 运行时 | 依赖可用 MongoDB；没有仓库级迁移脚本 |
+| TypeScript | `5.9.3` | 类型检查/编译 | 开发/构建 | `tsconfig` 开启 strict，`npm run typecheck` 执行 `tsc --noEmit` |
+| Mongoose | `8.24.0` | MongoDB adapter、模型和查询 | 运行时 | `DATABASE_PROVIDER=mongodb` 或 Mongo→SQL 迁移源使用；Mongo 无 Drizzle SQL migration |
+| drizzle-orm | `0.45.2` | SQLite/MySQL Repository 和 SQL schema | 运行时 | SQL provider 共用领域 Repository；migration 由 Drizzle Kit 生成 |
+| better-sqlite3 | `13.0.2` | SQLite 同步驱动 | 运行时 | 需要原生模块；Docker 使用 Debian slim；SQLite 只支持单实例 |
+| mysql2 | `3.23.2` | MySQL 连接驱动 | 运行时 | Compose 默认 MySQL 8.4；连接串来自 `MYSQL_URL` |
 | jose | `5.10.0` | JWT 创建/验证 | 运行时 | `JWT_SECRET` 缺失会使用固定 fallback |
 | octokit | `3.2.2` | GitHub API | 运行时，可选功能 | 审核通过时若未配置会失败；当前直接更新文件 |
 | js-yaml | `4.2.0` | 解析/序列化友链 YAML | 运行时 | 远程 YAML 现在有顶层、分组和友链对象的基本运行时校验；全量重写仍可能改变格式 |
@@ -17,6 +20,7 @@
 | Tailwind CSS | `3.4.19` | utility CSS | 构建 | `darkMode: 'class'`；样式也依赖 CSS 变量 |
 | PostCSS / Autoprefixer | `8.5.15` / `10.5.0` | CSS 构建 | 构建 | `postcss.config.mjs` 注册插件 |
 | ESLint / eslint-config-next | `9.39.4` / `15.5.19` | 静态检查 | 开发 | `npm run lint` 当前可执行，但底层 `next lint` 将被淘汰 |
+| drizzle-kit / tsx / vitest | `0.31.10` / `4.23.5` / `4.1.10` | SQL migration、脚本执行和 Repository 测试 | 开发/迁移 | migrate service 使用同一镜像中的脚本依赖；Vitest 当前无浏览器 E2E |
 
 来源：`package.json:5-34`、`tailwind.config.ts:3-13`、`postcss.config.mjs:1-9`、`lib/*.ts`。
 
@@ -24,11 +28,18 @@
 
 ### MongoDB
 
-- 连接入口：`lib/db.ts:18-35`。
-- 连接字符串来自 `MONGODB_URI`。
+- 连接入口：`lib/db.ts:18-35`，由 `lib/database/mongodb/repositories.ts` 封装调用。
+- provider 为 Mongo 时连接字符串来自 `MONGODB_URI`。
 - 数据集合由 Mongoose 模型隐式决定：`Submission`、`Config`。
-- 所有提交、管理员列表、设置和模板配置依赖 MongoDB。
-- 没有事务编排 MongoDB 与 GitHub/SMTP 的跨系统操作。
+- provider 为 Mongo 时提交、管理员列表、设置和模板配置依赖 MongoDB；SQLite/MySQL 由 Drizzle Repository 提供同一业务接口。
+- 没有事务编排数据库与 GitHub/SMTP 的跨系统操作；审核顺序保持 GitHub 写入、数据库状态保存、邮件尝试。
+
+### SQLite / MySQL
+
+- provider 配置：`DATABASE_PROVIDER=sqlite|mysql`，分别使用 `SQLITE_PATH`/`MYSQL_URL`。
+- Drizzle schema：`lib/database/sql/schema.ts`；版本化 migration 位于 `drizzle/sqlite` 与 `drizzle/mysql`。
+- SQLite 使用 `better-sqlite3` 和 WAL，生产只支持单机单实例；MySQL 使用 `mysql2`/Drizzle，Compose 默认 MySQL 8.4。
+- Repository：`lib/database/sql/repositories.ts`；路由不直接使用 SQL 方言。
 
 ### GitHub Contents API
 
@@ -48,7 +59,7 @@
 
 ### 外部 OwO JSON
 
-- URL 存在 MongoDB `Config` 的 `owoUrl`。
+- URL 存在当前数据库 provider 的 Config 存储中的 `owoUrl`。
 - 后台拒绝弹窗直接 `fetch(owoUrl)`，并将返回的 `icon` 通过 `dangerouslySetInnerHTML` 渲染（`app/admin/dashboard-client.tsx:141-154,495-498`）。
 - 只应配置可信来源；静态分析无法确认实际数据源。
 
@@ -58,12 +69,12 @@
 |---|---|---|
 | `app/admin/page.tsx` | `lib/auth.ts` | 服务端守卫 |
 | `app/api/auth/login` | `lib/auth.ts` | 账号比较、签发 token |
-| `app/api/submissions` | `lib/db.ts`、Submission、Config | 写入、查询、清理 |
+| `app/api/submissions` | `lib/database/repositories` | 写入、查询、清理和 provider 选择 |
 | `app/api/submissions` | `lib/github.ts` | 查询状态、分组、截图字段；部分接口未先鉴权 |
 | `app/api/submissions` | `lib/email.ts` | 新提交管理员通知 |
 | `app/api/submissions/[id]` | `lib/github.ts` | 审核通过时新增/更新 YAML |
 | `app/api/submissions/[id]` | `lib/email.ts` | 审核结果通知 |
-| `app/api/admin/settings` | Config、`lib/email.ts` | 配置持久化、默认模板、SMTP 状态 |
+| `app/api/admin/settings` | Config Repository、`lib/email.ts` | 配置持久化、默认模板、SMTP 状态 |
 | `AdminDashboard` | submissions API | 列表、辅助查询、审核、删除、注销 |
 | `SettingsPanel` | settings API | 加载和保存配置 |
 
@@ -75,11 +86,12 @@ graph LR
   Next --> React[React 客户端组件]
   Next --> Route[Route Handlers]
   Route --> Jose[jose]
-  Route --> Mongoose[Mongoose]
+  Route --> Database[Repository Factory]
   Route --> Octokit[Octokit]
   Route --> Nodemailer[Nodemailer]
   Octokit --> GitHub[GitHub Contents API]
-  Mongoose --> Mongo[MongoDB]
+  Database --> Mongo[Mongoose/MongoDB]
+  Database --> SQL[Drizzle/SQLite/MySQL]
   Nodemailer --> SMTP[SMTP]
   Octokit --> JsYaml[js-yaml]
 ```
@@ -87,7 +99,7 @@ graph LR
 ## 循环依赖与结构观察
 
 - 未从静态 import 扫描发现明确的模块循环依赖。
-- `lib/email.ts` 依赖 `lib/db.ts` 和 `Config` 读取模板；设置 API 又依赖 `lib/email.ts` 读取默认模板和 SMTP 状态，形成业务层面的双向协作，但不是静态 import 循环：`app/api/admin/settings/route.ts:2-5`、`lib/email.ts:2-3`。
+- `lib/email.ts` 依赖 Config Repository 读取模板；设置 API 又依赖 `lib/email.ts` 读取默认模板和 SMTP 状态，形成业务层面的双向协作，但不是静态 import 循环：`app/api/admin/settings/route.ts:2-4`、`lib/email.ts:1-2`。
 - API 路由同时承担认证、数据校验、业务编排和错误映射；新增测试或异步补偿机制时，建议先抽出 use-case/service seam。
 - 全量重写 YAML、直接 SMTP 和同步审核请求是当前最强外部耦合点。
 
