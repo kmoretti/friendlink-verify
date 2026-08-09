@@ -3,7 +3,7 @@
 [![license](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Next.js](https://img.shields.io/badge/Next.js-15-black?logo=next.js)](https://nextjs.org)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5-blue?logo=typescript)](https://www.typescriptlang.org)
-[![Node](https://img.shields.io/badge/node-%3E%3D20-brightgreen?logo=node.js)](https://nodejs.org)
+[![Node](https://img.shields.io/badge/node-%3E%3D22-brightgreen?logo=node.js)](https://nodejs.org)
 [![MongoDB](https://img.shields.io/badge/MongoDB-ready-green?logo=mongodb)](https://www.mongodb.com)
 [![Vercel](https://img.shields.io/badge/deploy-Vercel-black?logo=vercel)](https://vercel.com)
 [![GitHub stars](https://img.shields.io/github/stars/shangskr/friendlink-verify?style=social)](https://github.com/shangskr/friendlink-verify)
@@ -546,7 +546,7 @@ npm run build
 npm start
 ```
 
-> Node.js 建议使用 20 LTS 或更高版本。Windows 上如果 `npm run dev` 报错，可以使用上面的生产模式命令排查 standalone 构建问题。
+> Node.js 建议使用 22 LTS 或更高版本。Windows 上如果 `npm run dev` 报错，可以使用上面的生产模式命令排查 standalone 构建问题。
 
 ## API 接口
 
