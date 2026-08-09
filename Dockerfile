@@ -5,6 +5,12 @@ WORKDIR /app
 
 # Keep the lockfile authoritative and install all dependencies. The migration
 # service may use dev-only migration tooling (for example drizzle-kit).
+# better-sqlite3 may fall back to a source build when a prebuilt binary is
+# not available; node-gyp needs Python and a C++ toolchain to compile it.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends python3 make g++ \
+    && rm -rf /var/lib/apt/lists/*
+
 COPY package.json package-lock.json ./
 RUN npm ci
 
